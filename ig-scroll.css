@@ -118,3 +118,29 @@
         height: 40px;
     }
 }
+
+/* More posts visible */
+.insta-embed-post {
+    flex: 0 0 340px;
+}
+
+@media (max-width: 1024px) {
+    .insta-embed-post {
+        flex: 0 0 320px;
+    }
+}
+
+@media (max-width: 768px) {
+    .insta-embed-post {
+        flex: 0 0 280px;
+    }
+    .ig-carousel-wrapper {
+        padding: 0 50px;
+    }
+}
+
+@media (max-width: 480px) {
+    .insta-embed-post {
+        flex: 0 0 260px;
+    }
+}

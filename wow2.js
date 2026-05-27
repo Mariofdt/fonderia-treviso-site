@@ -253,8 +253,14 @@ function initHeroParallax() {
                 video.style.transform = `translateY(${scrolled * 0.2}px) scale(1.15)`;
             }
             if (content) {
-                content.style.transform = `translateY(${scrolled * 0.15}px)`;
-                content.style.opacity = 1 - (scrolled / heroHeight) * 0.8;
+                // Only fade, no translateY to avoid overlay on navbar
+                const fade = Math.max(0, 1 - (scrolled / (heroHeight * 0.7)));
+                content.style.opacity = fade;
+                if (fade <= 0) {
+                    content.style.visibility = 'hidden';
+                } else {
+                    content.style.visibility = 'visible';
+                }
             }
         }
     });
