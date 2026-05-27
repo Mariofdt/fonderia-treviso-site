@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="wow2.css">
     <link rel="stylesheet" href="reviews.css">
     <link rel="stylesheet" href="whatsapp.css">
+    <link rel="stylesheet" href="ig-scroll.css">
 </head>
 <body>
     <div class="loader-screen" id="loader">
@@ -89,22 +90,30 @@
                 <span class="section-label">Dal Nostro Instagram</span>
                 <h2 class="section-title">Fonderia in Diretta</h2>
             </div>
-            <div class="insta-embed-grid">
-                <div class="insta-embed-post">
-                    <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/p/DPgNoAQAsJl/" data-instgrm-version="14">
-                        <a href="https://www.instagram.com/p/DPgNoAQAsJl/" target="_blank">Vedi post su Instagram</a>
-                    </blockquote>
+            <div class="ig-carousel-wrapper">
+                <button class="ig-arrow prev" id="igPrev" aria-label="Post precedenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+                
+                <div class="ig-carousel-viewport" id="igViewport">
+                    <div class="insta-embed-grid">
+                        <div class="insta-embed-post">
+                            <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/p/DPgNoAQAsJl/" data-instgrm-version="14">
+                                <a href="https://www.instagram.com/p/DPgNoAQAsJl/" target="_blank">Vedi post su Instagram</a>
+                            </blockquote>
+                        </div>
+                        <div class="insta-embed-post">
+                            <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/p/DYVHx1NjUfe/" data-instgrm-version="14">
+                                <a href="https://www.instagram.com/p/DYVHx1NjUfe/" target="_blank">Vedi post su Instagram</a>
+                            </blockquote>
+                        </div>
+                        <div class="insta-embed-post">
+                            <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/p/DYHY6G8CXRp/" data-instgrm-version="14">
+                                <a href="https://www.instagram.com/p/DYHY6G8CXRp/" target="_blank">Vedi post su Instagram</a>
+                            </blockquote>
+                        </div>
+                    </div>
                 </div>
-                <div class="insta-embed-post">
-                    <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/p/DYVHx1NjUfe/" data-instgrm-version="14">
-                        <a href="https://www.instagram.com/p/DYVHx1NjUfe/" target="_blank">Vedi post su Instagram</a>
-                    </blockquote>
-                </div>
-                <div class="insta-embed-post">
-                    <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/p/DYHY6G8CXRp/" data-instgrm-version="14">
-                        <a href="https://www.instagram.com/p/DYHY6G8CXRp/" target="_blank">Vedi post su Instagram</a>
-                    </blockquote>
-                </div>
+                
+                <button class="ig-arrow next" id="igNext" aria-label="Post successivi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
             </div>
             <script async src="//www.instagram.com/embed.js"></script>
         </div>
@@ -677,6 +686,7 @@
     <script src="wow.js"></script>
     <script src="wow2.js"></script>
     <script src="music.js"></script>
+    <script src="ig-scroll.js"></script>
     <script src="reviews.js"></script>
 </body>
     <a href="https://wa.me/393204137183" target="_blank" class="whatsapp-float" aria-label="Scrivi su WhatsApp">

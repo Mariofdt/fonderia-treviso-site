@@ -1,0 +1,107 @@
+/* ========================================
+   INSTAGRAM EMBED SCROLLABLE
+   ======================================== */
+
+.ig-carousel-wrapper {
+    position: relative;
+    padding: 0 60px;
+}
+
+.ig-carousel-viewport {
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.ig-carousel-viewport::-webkit-scrollbar {
+    display: none;
+}
+
+.insta-embed-grid {
+    display: flex;
+    gap: 20px;
+    width: max-content;
+    padding: 4px;
+}
+
+.insta-embed-post {
+    flex: 0 0 340px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--color-surface);
+    min-height: 500px;
+}
+
+.insta-embed-post blockquote {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    min-width: 100% !important;
+}
+
+.insta-embed-post a {
+    display: block;
+    padding: 40px;
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 14px;
+    border: 1px dashed rgba(232, 224, 212, 0.15);
+    border-radius: 12px;
+    min-height: 500px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ig-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--color-surface);
+    border: 1px solid rgba(232, 224, 212, 0.1);
+    color: var(--color-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.3s ease;
+}
+
+.ig-arrow svg {
+    width: 20px;
+    height: 20px;
+}
+
+.ig-arrow:hover {
+    background: var(--color-primary);
+    color: var(--color-bg);
+    border-color: var(--color-primary);
+}
+
+.ig-arrow.prev {
+    left: 0;
+}
+
+.ig-arrow.next {
+    right: 0;
+}
+
+@media (max-width: 768px) {
+    .ig-carousel-wrapper {
+        padding: 0 40px;
+    }
+    .insta-embed-post {
+        flex: 0 0 300px;
+    }
+    .ig-arrow {
+        width: 40px;
+        height: 40px;
+    }
+}
