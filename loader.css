@@ -70,3 +70,15 @@
     0% { opacity: 0.4; }
     100% { opacity: 1; }
 }
+
+/* Fallback: auto-hide after 3.5s if JS fails */
+@keyframes loaderAutoHide {
+    0%, 85% { opacity: 1; visibility: visible; }
+    100% { opacity: 0; visibility: hidden; pointer-events: none; }
+}
+.loader-screen {
+    animation: loaderAutoHide 3.5s ease forwards;
+}
+.loader-screen.hidden {
+    animation: none;
+}

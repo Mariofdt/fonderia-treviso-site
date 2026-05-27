@@ -3,11 +3,23 @@
 // ========================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    initLoader();
     initNavbar();
     initScrollAnimations();
     initSmoothScroll();
     initGalleryLightbox();
 });
+
+function initLoader() {
+    const loader = document.getElementById('loader');
+    if (!loader) return;
+    window.addEventListener('load', () => {
+        setTimeout(() => {
+            loader.classList.add('hidden');
+            setTimeout(() => { loader.style.display = 'none'; }, 800);
+        }, 600);
+    });
+}
 
 // ----------------------------------------
 // Navbar scroll effect + mobile toggle
