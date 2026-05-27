@@ -1,0 +1,104 @@
+/* ========================================
+   WHATSAPP FLOATING BUTTON
+   ======================================== */
+
+.whatsapp-float {
+    position: fixed;
+    bottom: 100px;
+    right: 32px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #25d366;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1001;
+    box-shadow: 0 4px 20px rgba(37, 211, 102, 0.4);
+    transition: all 0.3s ease;
+    text-decoration: none;
+}
+
+.whatsapp-float:hover {
+    transform: scale(1.1) translateY(-2px);
+    box-shadow: 0 8px 30px rgba(37, 211, 102, 0.5);
+}
+
+.whatsapp-float svg {
+    width: 28px;
+    height: 28px;
+    fill: currentColor;
+}
+
+.whatsapp-float .wa-tooltip {
+    position: absolute;
+    right: 70px;
+    top: 50%;
+    transform: translateY(-50%) translateX(10px);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(232, 224, 212, 0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.whatsapp-float .wa-tooltip::after {
+    content: '';
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-width: 6px 0 6px 6px;
+    border-style: solid;
+    border-color: transparent transparent transparent var(--color-surface);
+}
+
+.whatsapp-float:hover .wa-tooltip {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+}
+
+@media (max-width: 768px) {
+    .whatsapp-float {
+        bottom: 80px;
+        right: 20px;
+        width: 50px;
+        height: 50px;
+    }
+    .whatsapp-float svg {
+        width: 24px;
+        height: 24px;
+    }
+    .whatsapp-float .wa-tooltip {
+        display: none;
+    }
+}
+
+/* WhatsApp link in contact */
+.wa-contact-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #25d366;
+    font-size: 0.95rem;
+    transition: color 0.3s ease;
+}
+
+.wa-contact-link:hover {
+    color: #128c7e;
+}
+
+.wa-contact-link svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
