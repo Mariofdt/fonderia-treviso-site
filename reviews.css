@@ -1,0 +1,216 @@
+/* ========================================
+   GOOGLE REVIEWS CAROUSEL
+   ======================================== */
+
+.reviews-section {
+    background: var(--color-bg);
+    padding: 120px 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.reviews-section::before {
+    content: '';
+    position: absolute;
+    inset: -50%;
+    background:
+        radial-gradient(ellipse at 30% 20%, rgba(201, 162, 39, 0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 80%, rgba(232, 76, 61, 0.04) 0%, transparent 50%);
+    animation: auroraMove 20s ease-in-out infinite alternate;
+    pointer-events: none;
+}
+
+.reviews-header {
+    text-align: center;
+    margin-bottom: 60px;
+    position: relative;
+    z-index: 2;
+}
+
+.reviews-rating {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.reviews-stars {
+    display: flex;
+    gap: 4px;
+    color: var(--color-primary);
+}
+
+.reviews-stars svg {
+    width: 22px;
+    height: 22px;
+    fill: currentColor;
+}
+
+.reviews-score {
+    font-family: var(--font-heading);
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--color-white);
+}
+
+.reviews-count {
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+}
+
+.reviews-carousel-wrap {
+    position: relative;
+    padding: 0 60px;
+    z-index: 2;
+}
+
+.reviews-carousel {
+    overflow: hidden;
+}
+
+.reviews-track {
+    display: flex;
+    gap: 24px;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.review-card {
+    flex: 0 0 calc(33.333% - 16px);
+    background: var(--color-surface);
+    border: 1px solid rgba(232, 224, 212, 0.06);
+    border-radius: 16px;
+    padding: 32px;
+    position: relative;
+    transition: all 0.4s ease;
+}
+
+.review-card:hover {
+    transform: translateY(-6px);
+    border-color: rgba(201, 162, 39, 0.15);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.review-quote {
+    font-size: 3rem;
+    line-height: 1;
+    color: var(--color-primary);
+    opacity: 0.3;
+    font-family: Georgia, serif;
+    margin-bottom: 8px;
+}
+
+.review-text {
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: var(--color-text);
+    margin-bottom: 24px;
+    min-height: 80px;
+}
+
+.review-stars {
+    display: flex;
+    gap: 3px;
+    margin-bottom: 20px;
+    color: var(--color-primary);
+}
+
+.review-stars svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+.review-author {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.review-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--color-bg);
+    flex-shrink: 0;
+}
+
+.review-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.review-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--color-white);
+}
+
+.review-date {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin-top: 2px;
+}
+
+.review-google-badge {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 24px;
+    height: 24px;
+    opacity: 0.4;
+    transition: opacity 0.3s ease;
+}
+
+.review-card:hover .review-google-badge {
+    opacity: 0.8;
+}
+
+.reviews-cta {
+    text-align: center;
+    margin-top: 48px;
+    position: relative;
+    z-index: 2;
+}
+
+.reviews-cta a {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    transition: color 0.3s ease;
+}
+
+.reviews-cta a:hover {
+    color: var(--color-primary);
+}
+
+.reviews-cta svg {
+    width: 20px;
+    height: 20px;
+}
+
+@media (max-width: 1024px) {
+    .review-card {
+        flex: 0 0 calc(50% - 12px);
+    }
+}
+
+@media (max-width: 768px) {
+    .reviews-carousel-wrap {
+        padding: 0 40px;
+    }
+    .review-card {
+        flex: 0 0 calc(85% - 8px);
+    }
+}
