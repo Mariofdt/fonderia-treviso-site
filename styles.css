@@ -1862,3 +1862,61 @@ section {
     background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
     opacity: 0.3;
 }
+
+/* ========================================
+   HERO FONT UPDATE - FONDERIA BIGGER
+   ======================================== */
+
+.hero-title {
+    font-family: var(--font-heading);
+    font-size: clamp(2.5rem, 8vw, 6rem);
+    font-weight: 900;
+    line-height: 1.05;
+    margin-bottom: 24px;
+    color: var(--color-white);
+    text-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+}
+
+.hero-title .line {
+    display: block;
+    opacity: 0;
+    transform: translateY(40px);
+    animation: fadeInUp 1s var(--transition-smooth) forwards;
+}
+
+.hero-title .line:nth-child(1) { animation-delay: 0.3s; }
+.hero-title .line:nth-child(2) { animation-delay: 0.5s; }
+.hero-title .line:nth-child(3) { animation-delay: 0.7s; }
+
+.hero-title .line-small {
+    font-family: var(--font-heading);
+    font-size: 0.5em;
+    font-weight: 400;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    opacity: 0.9;
+}
+
+.hero-title .line-big {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.4em;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    line-height: 0.95;
+    margin-top: -0.05em;
+}
+
+.hero-title .ampersand {
+    font-size: 0.35em;
+    color: var(--color-primary);
+    font-style: italic;
+    font-weight: 400;
+    font-family: var(--font-heading);
+    line-height: 1.2;
+}
+
+/* Override previous hero-title rules */
+.hero-title .line.glitch::before,
+.hero-title .line.glitch::after {
+    font-family: 'Bebas Neue', sans-serif;
+}
