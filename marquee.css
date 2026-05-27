@@ -1,0 +1,51 @@
+/* ========================================
+   MARQUEE - STANDALONE
+   ======================================== */
+
+.marquee-bar {
+    background: #c9a227;
+    padding: 24px 0;
+    overflow: hidden;
+    position: relative;
+    z-index: 10;
+    width: 100%;
+}
+
+.marquee-track {
+    display: flex;
+    width: fit-content;
+    animation: marqueeScroll 20s linear infinite;
+    will-change: transform;
+}
+
+.marquee-track:hover {
+    animation-play-state: paused;
+}
+
+.marquee-track span {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #0a0a0a;
+    white-space: nowrap;
+    padding-right: 80px;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+@keyframes marqueeScroll {
+    0% { transform: translate3d(0, 0, 0); }
+    100% { transform: translate3d(-50%, 0, 0); }
+}
+
+@media (max-width: 768px) {
+    .marquee-bar {
+        padding: 16px 0;
+    }
+    .marquee-track span {
+        font-size: clamp(1.3rem, 5vw, 1.8rem);
+        padding-right: 40px;
+    }
+}

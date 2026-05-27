@@ -1668,36 +1668,7 @@ section {
     pointer-events: none;
 }
 
-/* ---- Marquee ---- */
-.marquee-bar {
-    background: var(--color-primary);
-    padding: 20px 0;
-    overflow: hidden;
-    position: relative;
-    z-index: 10;
-}
 
-.marquee-track {
-    display: flex;
-    width: max-content;
-    animation: marqueeScroll 25s linear infinite;
-}
-
-.marquee-track span {
-    font-family: var(--font-heading);
-    font-size: clamp(1.4rem, 3vw, 2.2rem);
-    font-weight: 900;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--color-bg);
-    white-space: nowrap;
-    padding-right: 60px;
-}
-
-@keyframes marqueeScroll {
-    0% { transform: translateX(0); }
-    100% { transform: translateX(-50%); }
-}
 
 /* ---- Custom Cursor ---- */
 .custom-cursor {
