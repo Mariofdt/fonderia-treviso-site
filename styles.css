@@ -1671,7 +1671,7 @@ section {
 /* ---- Marquee ---- */
 .marquee-bar {
     background: var(--color-primary);
-    padding: 14px 0;
+    padding: 20px 0;
     overflow: hidden;
     position: relative;
     z-index: 10;
@@ -1680,18 +1680,18 @@ section {
 .marquee-track {
     display: flex;
     width: max-content;
-    animation: marqueeScroll 20s linear infinite;
+    animation: marqueeScroll 25s linear infinite;
 }
 
 .marquee-track span {
     font-family: var(--font-heading);
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 0.15em;
+    font-size: clamp(1.4rem, 3vw, 2.2rem);
+    font-weight: 900;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--color-bg);
     white-space: nowrap;
-    padding-right: 40px;
+    padding-right: 60px;
 }
 
 @keyframes marqueeScroll {
