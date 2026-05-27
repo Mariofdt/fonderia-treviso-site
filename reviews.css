@@ -14,8 +14,8 @@
     position: absolute;
     inset: -50%;
     background:
-        radial-gradient(ellipse at 30% 20%, rgba(201, 162, 39, 0.06) 0%, transparent 50%),
-        radial-gradient(ellipse at 70% 80%, rgba(232, 76, 61, 0.04) 0%, transparent 50%);
+        radial-gradient(ellipse at 30% 20%, rgba(196, 93, 38, 0.07) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 80%, rgba(255, 107, 26, 0.04) 0%, transparent 50%);
     animation: auroraMove 20s ease-in-out infinite alternate;
     pointer-events: none;
 }
@@ -45,6 +45,7 @@
     width: 22px;
     height: 22px;
     fill: currentColor;
+    filter: drop-shadow(0 0 6px rgba(196, 93, 38, 0.3));
 }
 
 .reviews-score {
@@ -78,7 +79,7 @@
 .review-card {
     flex: 0 0 calc(33.333% - 16px);
     background: var(--color-surface);
-    border: 1px solid rgba(232, 224, 212, 0.06);
+    border: 1px solid rgba(240, 235, 227, 0.06);
     border-radius: 16px;
     padding: 32px;
     position: relative;
@@ -87,8 +88,8 @@
 
 .review-card:hover {
     transform: translateY(-6px);
-    border-color: rgba(201, 162, 39, 0.15);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    border-color: rgba(196, 93, 38, 0.2);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2), 0 0 30px rgba(196, 93, 38, 0.06);
 }
 
 .review-quote {
@@ -140,6 +141,7 @@
     font-size: 1.1rem;
     color: var(--color-bg);
     flex-shrink: 0;
+    box-shadow: 0 0 15px rgba(196, 93, 38, 0.3);
 }
 
 .review-avatar img {

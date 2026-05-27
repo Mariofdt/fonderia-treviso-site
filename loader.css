@@ -30,7 +30,7 @@
 .loader-bar {
     width: 160px;
     height: 2px;
-    background: rgba(232, 224, 212, 0.1);
+    background: rgba(240, 235, 227, 0.1);
     border-radius: 2px;
     overflow: hidden;
     position: relative;

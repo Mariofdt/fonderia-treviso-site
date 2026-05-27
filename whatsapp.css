@@ -47,7 +47,7 @@
     opacity: 0;
     pointer-events: none;
     transition: all 0.3s ease;
-    border: 1px solid rgba(232, 224, 212, 0.1);
+    border: 1px solid rgba(240, 235, 227, 0.1);
     box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 

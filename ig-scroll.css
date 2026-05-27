@@ -48,7 +48,7 @@
     text-align: center;
     color: var(--color-text-muted);
     font-size: 14px;
-    border: 1px dashed rgba(232, 224, 212, 0.15);
+    border: 1px dashed rgba(240, 235, 227, 0.15);
     border-radius: 12px;
     min-height: 500px;
     display: flex;

@@ -26,9 +26,9 @@
     inset: -50%;
     z-index: 0;
     background:
-        radial-gradient(ellipse at 20% 50%, rgba(201, 162, 39, 0.12) 0%, transparent 50%),
-        radial-gradient(ellipse at 80% 30%, rgba(232, 76, 61, 0.08) 0%, transparent 50%),
-        radial-gradient(ellipse at 50% 80%, rgba(201, 162, 39, 0.06) 0%, transparent 50%);
+        radial-gradient(ellipse at 20% 50%, rgba(196, 93, 38, 0.10) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 30%, rgba(255, 107, 26, 0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 80%, rgba(196, 93, 38, 0.05) 0%, transparent 50%);
     animation: auroraMove 15s ease-in-out infinite alternate;
     pointer-events: none;
 }
@@ -63,7 +63,7 @@
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%, rgba(0,0,0,0.1) 100%);
+    background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 50%, rgba(0,0,0,0.15) 100%);
     opacity: 0;
     transition: opacity 0.4s ease;
     pointer-events: none;
@@ -119,6 +119,20 @@
     transform: scale(1);
 }
 
+/* ---- Forge Reveal (glow blur fade-in) ---- */
+.forge-reveal {
+    opacity: 0;
+    filter: blur(12px);
+    transform: translateY(40px);
+    transition: opacity 1.2s cubic-bezier(0.4,0,0.2,1), filter 1.2s cubic-bezier(0.4,0,0.2,1), transform 1.2s cubic-bezier(0.4,0,0.2,1);
+}
+
+.forge-reveal.active {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+}
+
 /* ---- Stagger children ---- */
 .stagger-children > * {
     opacity: 0;
@@ -155,7 +169,7 @@
     left: -100%;
     width: 50%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
     transition: left 0.5s ease;
     pointer-events: none;
 }
@@ -187,7 +201,7 @@
     position: absolute;
     border-radius: 50%;
     filter: blur(80px);
-    opacity: 0.2;
+    opacity: 0.15;
     pointer-events: none;
     z-index: 0;
     animation: blobMove 20s ease-in-out infinite alternate;
@@ -211,7 +225,7 @@
     width: 200px;
     height: 200px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(201,162,39,0.3) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(196,93,38,0.25) 0%, transparent 70%);
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.3s ease;

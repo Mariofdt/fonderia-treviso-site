@@ -3,18 +3,19 @@
    ======================================== */
 
 .marquee-bar {
-    background: #c9a227;
-    padding: 24px 0;
+    background: var(--color-primary);
+    padding: 28px 0;
     overflow: hidden;
     position: relative;
     z-index: 10;
     width: 100%;
+    box-shadow: 0 0 30px rgba(196, 93, 38, 0.3);
 }
 
 .marquee-track {
     display: flex;
     width: fit-content;
-    animation: marqueeScroll 20s linear infinite;
+    animation: marqueeScroll 18s linear infinite;
     will-change: transform;
 }
 
@@ -23,16 +24,17 @@
 }
 
 .marquee-track span {
-    font-family: 'Playfair Display', Georgia, serif;
-    font-size: clamp(1.8rem, 4vw, 3rem);
-    font-weight: 900;
+    font-family: var(--font-heading);
+    font-size: clamp(1.8rem, 4vw, 3.2rem);
+    font-weight: 700;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: #0a0a0a;
+    color: var(--color-bg);
     white-space: nowrap;
     padding-right: 80px;
     display: inline-block;
     flex-shrink: 0;
+    text-shadow: 0 0 20px rgba(255, 107, 26, 0.4);
 }
 
 @keyframes marqueeScroll {
@@ -42,7 +44,7 @@
 
 @media (max-width: 768px) {
     .marquee-bar {
-        padding: 16px 0;
+        padding: 18px 0;
     }
     .marquee-track span {
         font-size: clamp(1.3rem, 5vw, 1.8rem);
