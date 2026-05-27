@@ -454,15 +454,15 @@ section {
 .about-image img {
     border-radius: 8px;
     width: 100%;
-    height: 500px;
+    aspect-ratio: 4/3;
     object-fit: cover;
     box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
 }
 
 .about-image-accent {
     position: absolute;
-    top: 30px;
-    right: -30px;
+    top: 20px;
+    right: -20px;
     width: 100%;
     height: 100%;
     border: 2px solid var(--color-primary);
@@ -769,14 +769,14 @@ section {
 .contact-map {
     border-radius: 12px;
     overflow: hidden;
-    min-height: 500px;
+    min-aspect-ratio: 4/3;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
 }
 
 .contact-map iframe {
     width: 100%;
     height: 100%;
-    min-height: 500px;
+    min-aspect-ratio: 4/3;
     filter: grayscale(0.8) contrast(1.1);
 }
 
@@ -1490,7 +1490,7 @@ section {
     border-radius: 12px;
     overflow: hidden;
     background: var(--color-surface);
-    min-height: 500px;
+    min-aspect-ratio: 4/3;
 }
 
 .insta-embed-post blockquote {
@@ -1508,7 +1508,7 @@ section {
     font-size: 14px;
     border: 1px dashed rgba(232, 224, 212, 0.15);
     border-radius: 12px;
-    min-height: 500px;
+    min-aspect-ratio: 4/3;
     display: flex;
     align-items: center;
     justify-content: center;
