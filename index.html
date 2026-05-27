@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fonderia Treviso | Beer, Food & Music</title>
+    <meta name="description" content="Nuovo punto di ritrovo a Treviso. Ottime birre, buon cibo, musica dal vivo e spettacoli. Via Fonderia, 113 - Treviso.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="#" class="nav-logo">
+                <img src="images/logo.svg" alt="Fonderia Treviso">
+            </a>
+            <button class="nav-toggle" id="navToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="#about">Chi Siamo</a></li>
+                <li><a href="#experience">L'Esperienza</a></li>
+                <li><a href="#menu">Menu</a></li>
+                <li><a href="#gallery">Gallery</a></li>
+                <li><a href="#events">Eventi</a></li>
+                <li><a href="#contact">Contatti</a></li>
+                        <li><a href="#faq">FAQ</a></li>
+                <li><a href="#faq">FAQ</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <header class="hero" id="hero">
+        <div class="hero-video-container">
+            <video autoplay muted loop playsinline poster="images/hero-bg.jpg" class="hero-video-rotate">
+                <source src="videos/hero-video.mp4" type="video/mp4">
+            </video>
+            <div class="hero-overlay"></div>
+        </div>
+        <div class="hero-content">
+            <h1 class="hero-title">
+                <span class="line">La notte</span>
+                <span class="line ampersand">in</span>
+                <span class="line">Fonderia</span>
+            </h1>
+            <p class="hero-subtitle">Food, Cocktails and Music in Treviso</p>
+            <div class="hero-cta">
+                <a href="#experience" class="btn btn-primary">Scopri Fonderia</a>
+                <a href="#contact" class="btn btn-outline">Prenota un Tavolo</a>
+            </div>
+            <div class="hero-social">
+                <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" aria-label="Instagram">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                </a>
+                <a href="https://www.facebook.com/FonderiaTreviso" target="_blank" aria-label="Facebook">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                </a>
+            </div>
+        </div>
+        <div class="scroll-indicator">
+            <span>Scorri</span>
+            <div class="mouse"></div>
+        </div>
+    </header>
+
+    <section class="insta-embed-section" id="insta-embed">
+        <div class="container">
+            <div class="section-header" data-aos="fade-up">
+                <span class="section-label">Dal Nostro Instagram</span>
+                <h2 class="section-title">Fonderia in Diretta</h2>
+            </div>
+            <div class="insta-embed-grid" data-aos="fade-up">
+                <div class="insta-embed-post">
+                    <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/p/DPgNoAQAsJl/" data-instgrm-version="14">
+                        <a href="https://www.instagram.com/p/DPgNoAQAsJl/" target="_blank">Vedi post su Instagram</a>
+                    </blockquote>
+                </div>
+                <div class="insta-embed-post">
+                    <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/p/DYVHx1NjUfe/" data-instgrm-version="14">
+                        <a href="https://www.instagram.com/p/DYVHx1NjUfe/" target="_blank">Vedi post su Instagram</a>
+                    </blockquote>
+                </div>
+                <div class="insta-embed-post">
+                    <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/p/DYHY6G8CXRp/" data-instgrm-version="14">
+                        <a href="https://www.instagram.com/p/DYHY6G8CXRp/" target="_blank">Vedi post su Instagram</a>
+                    </blockquote>
+                </div>
+            </div>
+            <script async src="//www.instagram.com/embed.js"></script>
+        </div>
+    </section>
+
+    <section class="about" id="about">
+        <div class="container">
+            <div class="about-grid">
+                <div class="about-text" data-aos="fade-right">
+                    <span class="section-label">Il Locale</span>
+                    <h2 class="section-title">Un Nuovo Punto di Ritrovo a Treviso</h2>
+                    <p>Fonderia è molto più di un semplice bar. È un luogo dove l'atmosfera industriale incontra il calore dell'accoglienza, dove ogni sera si trasforma in un'esperienza unica tra ottime birre artigianali, cocktail creativi e musica dal vivo.</p>
+                    <p>Nel cuore di Treviso, in Via Fonderia 113, troverai uno spazio pensato per chi ama vivere la notte con stile, tra amici e buona musica.</p>
+                    <div class="about-stats">
+                        <div class="stat">
+                            <span class="stat-num">13K</span>
+                            <span class="stat-label">Follower Instagram</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-num">550+</span>
+                            <span class="stat-label">Post</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-num">VEN-SAB</span>
+                            <span class="stat-label">21:00 - 04:00</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="about-image" data-aos="fade-left">
+                    <img src="images/gallery3.jpg" alt="Interno Fonderia Treviso">
+                    <div class="about-image-accent"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="experience" id="experience">
+        <div class="container">
+            <div class="section-header" data-aos="fade-up">
+                <span class="section-label">Cosa Troverai</span>
+                <h2 class="section-title">L'Esperienza Fonderia</h2>
+            </div>
+            <div class="experience-grid">
+                <div class="exp-card" data-aos="fade-up" data-aos-delay="0">
+                    <div class="exp-icon">
+                        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 48h32M20 48V24a12 12 0 0 1 24 0v24M28 48V32a4 4 0 0 1 8 0v16"/></svg>
+                    </div>
+                    <h3>Ottime Birre</h3>
+                    <p>Selezione di birre artigianali locali e internazionali, alla spina e in bottiglia. Freschezza e qualità in ogni sorso.</p>
+                </div>
+                <div class="exp-card" data-aos="fade-up" data-aos-delay="100">
+                    <div class="exp-icon">
+                        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2"><path d="M32 8l24 40H8L32 8z"/><path d="M32 24v16M32 48v4"/></svg>
+                    </div>
+                    <h3>Buon Cibo</h3>
+                    <p>Snack, taglieri e specialità pensate per accompagnare le tue serate. Sapori autentici che conquistano il palato.</p>
+                </div>
+                <div class="exp-card" data-aos="fade-up" data-aos-delay="200">
+                    <div class="exp-icon">
+                        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2"><circle cx="32" cy="32" r="24"/><path d="M20 32c0-6.6 5.4-12 12-12s12 5.4 12 12-5.4 12-12 12"/><circle cx="32" cy="32" r="4"/></svg>
+                    </div>
+                    <h3>Musica dal Vivo</h3>
+                    <p>DJ set, band emergenti e spettacoli live. Ogni sera una nuova colonna sonora per le tue notti trevigiane.</p>
+                </div>
+                <div class="exp-card" data-aos="fade-up" data-aos-delay="300">
+                    <div class="exp-icon">
+                        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2"><path d="M48 48H16a8 8 0 0 1-8-8V24a8 8 0 0 1 8-8h32a8 8 0 0 1 8 8v16a8 8 0 0 1-8 8z"/><path d="M24 16v-4a8 8 0 0 1 16 0v4M32 32v8"/></svg>
+                    </div>
+                    <h3>Atmosfera Unica</h3>
+                    <p>Design industriale, luci soffuse e un'energia contagiosa. Il posto perfetto per iniziare o finire la serata.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="menu-section" id="menu">
+        <div class="container">
+            <div class="menu-card" data-aos="fade-up">
+                <div class="menu-icon">
+                    <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 20h48M12 20v28a4 4 0 0 0 4 4h32a4 4 0 0 0 4-4V20"/><path d="M24 12v8M40 12v8M20 32h4M30 32h4M40 32h4M20 40h4M30 40h4M40 40h4"/></svg>
+                </div>
+                <span class="section-label">Il Nostro Menu</span>
+                <h2>Scopri Cosa Ti Aspetta</h2>
+                <p>Dalle birre artigianali agli snack e ai cocktail, consulta il nostro menu completo online e preparati a vivere un'esperienza di gusto unica.</p>
+                <a href="https://fonderiatreviso.ordinaincloud.it/menu/15934" target="_blank" class="btn btn-primary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    Consulta il Menu Online
+                </a>
+                <p class="menu-note">Menu aggiornato su ordinaincloud.it</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="instagram" id="gallery">
+        <div class="container">
+            <div class="insta-header" data-aos="fade-up">
+                <div class="insta-profile">
+                    <div class="insta-avatar">
+                        <img src="https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-19/301131011_151959850811148_2453486274223469012_n.jpg?stp=dst-jpg_s100x100_tt6&_nc_cat=105&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D&_nc_ohc=QJxeYj5foYwQ7kNvwEf-EgI&_nc_oc=AdpHWqhhmsKp6tF5FprN8O-27_cZOuAZ7vy5p7LVt0fg3w5VE24Fq6Rdk-ZfaoX3IE0&_nc_zt=24&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_ss=7f60f&oh=00_Af44c3Nq9icpZB-kxCM1pZ2T57AGolTwfbd7ROiqyyhC8w&oe=6A1BD899" alt="@fonderiatreviso" loading="lazy">
+                    </div>
+                    <div class="insta-info">
+                        <span class="insta-handle">@fonderiatreviso</span>
+                        <div class="insta-stats">
+                            <span><strong>550</strong> post</span>
+                            <span><strong>13K</strong> follower</span>
+                        </div>
+                    </div>
+                </div>
+                <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="insta-follow-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                    Segui su Instagram
+                </a>
+            </div>
+
+            <div class="insta-carousel-wrapper" data-aos="fade-up">
+                <button class="carousel-btn carousel-prev" aria-label="Precedente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+                
+                <div class="insta-carousel" id="instaCarousel">
+                    <div class="carousel-track">
+                        <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="insta-slide">
+                            <img src="images/gallery1.jpg" alt="Fonderia Treviso" loading="lazy">
+                            <div class="insta-overlay"><svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg></div>
+                        </a>
+                        <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="insta-slide">
+                            <img src="images/gallery2.jpg" alt="Fonderia Treviso" loading="lazy">
+                            <div class="insta-overlay"><svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg></div>
+                        </a>
+                        <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="insta-slide">
+                            <img src="images/gallery3.jpg" alt="Fonderia Treviso" loading="lazy">
+                            <div class="insta-overlay"><svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg></div>
+                        </a>
+                        <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="insta-slide">
+                            <img src="images/gallery4.jpg" alt="Fonderia Treviso" loading="lazy">
+                            <div class="insta-overlay"><svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg></div>
+                        </a>
+                        <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="insta-slide">
+                            <img src="images/gallery5.jpg" alt="Fonderia Treviso" loading="lazy">
+                            <div class="insta-overlay"><svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg></div>
+                        </a>
+                        <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="insta-slide">
+                            <img src="images/gallery6.jpg" alt="Fonderia Treviso" loading="lazy">
+                            <div class="insta-overlay"><svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg></div>
+                        </a>
+                        <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="insta-slide">
+                            <img src="images/gallery7.jpg" alt="Fonderia Treviso" loading="lazy">
+                            <div class="insta-overlay"><svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg></div>
+                        </a>
+                        <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="insta-slide">
+                            <img src="images/gallery8.jpg" alt="Fonderia Treviso" loading="lazy">
+                            <div class="insta-overlay"><svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg></div>
+                        </a>
+                        <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="insta-slide">
+                            <img src="images/gallery9.jpg" alt="Fonderia Treviso" loading="lazy">
+                            <div class="insta-overlay"><svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg></div>
+                        </a>
+                        <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="insta-slide">
+                            <img src="images/gallery10.jpg" alt="Fonderia Treviso" loading="lazy">
+                            <div class="insta-overlay"><svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg></div>
+                        </a>
+                        <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="insta-slide">
+                            <img src="images/gallery11.jpg" alt="Fonderia Treviso" loading="lazy">
+                            <div class="insta-overlay"><svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg></div>
+                        </a>
+                        <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="insta-slide">
+                            <img src="images/birre.jpg" alt="Birre Fonderia" loading="lazy">
+                            <div class="insta-overlay"><svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg></div>
+                        </a>
+                    </div>
+                </div>
+                
+                <button class="carousel-btn carousel-next" aria-label="Successiva"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
+            </div>
+            
+            <div class="carousel-dots" id="carouselDots"></div>
+        </div>
+    </section>
+
+    <section class="events" id="events">
+        <div class="container">
+            <div class="section-header" data-aos="fade-up">
+                <span class="section-label">Eventi</span>
+                <h2 class="section-title">Musica, Spettacoli & Serate</h2>
+            </div>
+            <div class="events-grid">
+                <div class="event-card" data-aos="fade-up">
+                    <div class="event-date">
+                        <span class="day">VEN</span>
+                        <span class="time">21:00 - 04:00</span>
+                    </div>
+                    <div class="event-info">
+                        <h3>Venerdì Serata Live</h3>
+                        <p>Apertura con DJ set e musica dal vivo. Il weekend inizia qui, con energia e ritmo.</p>
+                        <span class="event-tag">DJ Set • Live Music</span>
+                    </div>
+                </div>
+                <div class="event-card" data-aos="fade-up" data-aos-delay="100">
+                    <div class="event-date">
+                        <span class="day">SAB</span>
+                        <span class="time">21:00 - 04:00</span>
+                    </div>
+                    <div class="event-info">
+                        <h3>Sabato Notte Fonderia</h3>
+                        <p>La notte più calda di Treviso. Speciali serate a tema, cocktail e la migliore selezione musicale.</p>
+                        <span class="event-tag">Special Guest • Cocktail Night</span>
+                    </div>
+                </div>
+            </div>
+            <div class="instagram-cta" data-aos="fade-up">
+                <p>Segui <a href="https://www.instagram.com/fonderiatreviso/" target="_blank">@fonderiatreviso</a> su Instagram per gli eventi in tempo reale</p>
+                <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="btn btn-primary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                    Seguici su Instagram
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <section class="contact" id="contact">
+        <div class="container">
+            <div class="contact-grid">
+                <div class="contact-info" data-aos="fade-right">
+                    <span class="section-label">Dove Siamo</span>
+                    <h2 class="section-title">Ti Aspettiamo in Fonderia</h2>
+                    <p>Pronto a vivere l'esperienza? Vieni a trovarci nel cuore di Treviso.</p>
+                    <div class="contact-details">
+                        <div class="contact-item">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                            <div>
+                                <strong>Indirizzo</strong>
+                                <span>Via Fonderia, 113<br>31100 Treviso (TV)</span>
+                            </div>
+                        </div>
+                        <div class="contact-item">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                            <div>
+                                <strong>Telefono</strong>
+                                <a href="tel:+393204137183">+39 320 413 7183</a>
+                            </div>
+                        </div>
+                        <div class="contact-item">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            <div>
+                                <strong>Orari</strong>
+                                <span>Venerdì e Sabato<br>21:00 - 04:00</span>
+                            </div>
+                        </div>
+                    </div>
+                    <a href="https://www.google.com/maps/search/?api=1&query=Via+Fonderia+113+Treviso" target="_blank" class="btn btn-primary">Naviga con Google Maps</a>
+                </div>
+                <div class="contact-map" data-aos="fade-left">
+                    <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2796.2!2d12.2449!3d45.6658!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x4779443e8d0c7f2b%3A0x6f6c0f0f0f0f0f0f!2sVia%20Fonderia%2C%20113%2C%2031100%20Treviso%20TV!5e0!3m2!1sit!2sit!4v1700000000000!5m2!1sit!2sit" width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="faq" id="faq">
+        <div class="container">
+            <div class="section-header" data-aos="fade-up">
+                <span class="section-label">Domande Frequenti</span>
+                <h2 class="section-title">Tutto Quello Che Devi Sapere</h2>
+            </div>
+            <div class="faq-grid">
+                <div class="faq-item" data-aos="fade-up">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>Quali eventi si tengono in Fonderia?</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Ogni venerdì e sabato serata dalle 21:00 alle 04:00. DJ set, musica dal vivo, special guest e serate a tema. Segui <a href="https://www.instagram.com/fonderiatreviso/" target="_blank">@fonderiatreviso</a> su Instagram per gli eventi in tempo reale.</p>
+                    </div>
+                </div>
+                <div class="faq-item" data-aos="fade-up" data-aos-delay="50">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>Dove posso consultare il menu?</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Il menu completo è disponibile online su <a href="https://fonderiatreviso.ordinaincloud.it/menu/15934" target="_blank">ordinaincloud.it</a>. Troverai birre artigianali, cocktail, snack e taglieri.</p>
+                    </div>
+                </div>
+                <div class="faq-item" data-aos="fade-up" data-aos-delay="100">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>Quali sono gli orari di apertura?</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Siamo aperti venerdì e sabato, dalle 21:00 alle 04:00. Per eventi speciali e aperture straordinarie, segui i nostri canali social.</p>
+                    </div>
+                </div>
+                <div class="faq-item" data-aos="fade-up" data-aos-delay="150">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>Cosa dicono le recensioni di Fonderia?</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Fonderia è amata per la sua atmosfera industriale, le ottime birre artigianali e la musica dal vivo. Ci trovi su <a href="https://www.tripadvisor.it/Restaurant_Review-g187869-d23233839-Reviews-Fonderia_Treviso-Treviso_Province_of_Treviso_Veneto.html" target="_blank">TripAdvisor</a> e <a href="https://restaurantguru.it/Fonderia-Treviso" target="_blank">RestaurantGuru</a>.</p>
+                    </div>
+                </div>
+                <div class="faq-item" data-aos="fade-up" data-aos-delay="200">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>Cosa fate a Capodanno?</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Per Capodanno e le festività proponiamo serate speciali con menu dedicati, open bar e musica fino all'alba. Le prenotazioni si aprono qualche settimana prima: contattaci al <a href="tel:+393204137183">+39 320 413 7183</a>.</p>
+                    </div>
+                </div>
+                <div class="faq-item" data-aos="fade-up" data-aos-delay="250">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>C'è un'età minima per entrare?</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>L'ingresso è consentito ai maggiorenni. È richiesto un documento d'identità valido all'ingresso.</p>
+                    </div>
+                </div>
+                <div class="faq-item" data-aos="fade-up" data-aos-delay="300">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>Dove si trova esattamente Fonderia?</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Siamo in <strong>Via Fonderia, 113, 31100 Treviso (TV)</strong>, nel cuore del centro storico trevigiano. A pochi passi da Piazza dei Signori.</p>
+                    </div>
+                </div>
+                <div class="faq-item" data-aos="fade-up" data-aos-delay="350">
+                    <button class="faq-question" aria-expanded="false">
+                        <span>Come arrivo in Via Fonderia?</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Il centro storico di Treviso è a zona a traffico limitato. Consigliamo di parcheggiare nelle vicinanze (Parcheggio Centro Storico o Parcheggio Ex Canapificio) e proseguire a piedi. Usa <a href="https://www.google.com/maps/search/?api=1&query=Via+Fonderia+113+Treviso" target="_blank">Google Maps</a> per le indicazioni stradali.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <img src="images/logo.svg" alt="Fonderia Treviso">
+                    <p>Food, Cocktails and Music in Treviso.<br>Il cuore della nightlife trevigiana.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Navigazione</h4>
+                    <ul>
+                        <li><a href="#about">Chi Siamo</a></li>
+                        <li><a href="#experience">L'Esperienza</a></li>
+                        <li><a href="#menu">Menu</a></li>
+                <li><a href="#gallery">Gallery</a></li>
+                        <li><a href="#events">Eventi</a></li>
+                        <li><a href="#contact">Contatti</a></li>
+                        <li><a href="#faq">FAQ</a></li>
+                <li><a href="#faq">FAQ</a></li>
+                    </ul>
+                </div>
+                <div class="footer-social">
+                    <h4>Seguici</h4>
+                    <div class="social-links">
+                        <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" aria-label="Instagram">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                        </a>
+                        <a href="https://www.facebook.com/FonderiaTreviso" target="_blank" aria-label="Facebook">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Fonderia Treviso. Tutti i diritti riservati.</p>
+                <p>Via Fonderia, 113 - 31100 Treviso (TV) | Tel: +39 320 413 7183</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
