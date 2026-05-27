@@ -8,8 +8,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="loader.css">
 </head>
 <body>
+    <div class="loader-screen" id="loader">
+        <img src="images/logo.svg" alt="Fonderia" class="loader-logo">
+        <div class="loader-bar"></div>
+        <div class="loader-text">Caricamento esperienza...</div>
+    </div>
     <nav class="navbar" id="navbar">
         <div class="nav-container">
             <a href="#" class="nav-logo">
@@ -37,6 +43,8 @@
                 <source src="videos/hero-video.mp4" type="video/mp4">
             </video>
             <div class="hero-overlay"></div>
+            <div class="scanlines"></div>
+            <canvas id="particles" class="particles-canvas"></canvas>
         </div>
         <div class="hero-content">
             <h1 class="hero-title">
@@ -63,6 +71,13 @@
             <div class="mouse"></div>
         </div>
     </header>
+
+    <div class="marquee-bar">
+        <div class="marquee-track">
+            <span>Venerdi Live &#10022; Sabato Notte &#10022; Birre Artigianali &#10022; Cocktail &#10022; DJ Set &#10022; Via Fonderia 113 &#10022; Treviso &#10022; </span>
+            <span>Venerdi Live &#10022; Sabato Notte &#10022; Birre Artigianali &#10022; Cocktail &#10022; DJ Set &#10022; Via Fonderia 113 &#10022; Treviso &#10022; </span>
+        </div>
+    </div>
 
     <section class="insta-embed-section" id="insta-embed">
         <div class="container">
@@ -464,6 +479,11 @@
         </div>
     </footer>
 
+    <button class="sound-toggle" id="soundToggle" aria-label="Attiva audio">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="soundIconOff"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="soundIconOn" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+    </button>
     <script src="app.js"></script>
+    <script src="wow.js"></script>
 </body>
 </html>
