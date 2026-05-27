@@ -13,12 +13,17 @@ document.addEventListener('DOMContentLoaded', () => {
 function initLoader() {
     const loader = document.getElementById('loader');
     if (!loader) return;
-    window.addEventListener('load', () => {
+    function hideLoader() {
         setTimeout(() => {
             loader.classList.add('hidden');
             setTimeout(() => { loader.style.display = 'none'; }, 800);
         }, 600);
-    });
+    }
+    if (document.readyState === 'complete') {
+        hideLoader();
+    } else {
+        window.addEventListener('load', hideLoader);
+    }
 }
 
 // ----------------------------------------
