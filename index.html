@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="marquee.css">
     <link rel="stylesheet" href="loader.css">
+    <link rel="stylesheet" href="wow2.css">
 </head>
 <body>
     <div class="loader-screen" id="loader">
@@ -55,8 +56,8 @@
             </h1>
             <p class="hero-subtitle">Food, Cocktails and Music in Treviso</p>
             <div class="hero-cta">
-                <a href="#experience" class="btn btn-primary">Scopri Fonderia</a>
-                <a href="#contact" class="btn btn-outline">Prenota un Tavolo</a>
+                <a href="#experience" class="btn btn-primary magnetic-btn">Scopri Fonderia</a>
+                <a href="#contact" class="btn btn-outline magnetic-btn">Prenota un Tavolo</a>
             </div>
             <div class="hero-social">
                 <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" aria-label="Instagram">
@@ -82,11 +83,11 @@
 
     <section class="insta-embed-section" id="insta-embed">
         <div class="container">
-            <div class="section-header" data-aos="fade-up">
+            <div class="section-header reveal">
                 <span class="section-label">Dal Nostro Instagram</span>
                 <h2 class="section-title">Fonderia in Diretta</h2>
             </div>
-            <div class="insta-embed-grid" data-aos="fade-up">
+            <div class="insta-embed-grid">
                 <div class="insta-embed-post">
                     <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/p/DPgNoAQAsJl/" data-instgrm-version="14">
                         <a href="https://www.instagram.com/p/DPgNoAQAsJl/" target="_blank">Vedi post su Instagram</a>
@@ -107,21 +108,21 @@
         </div>
     </section>
 
-    <section class="about" id="about">
+    <section class="about aurora-bg" id="about">
         <div class="container">
             <div class="about-grid">
-                <div class="about-text" data-aos="fade-right">
+                <div class="about-text reveal-left">
                     <span class="section-label">Il Locale</span>
                     <h2 class="section-title">Un Nuovo Punto di Ritrovo a Treviso</h2>
                     <p>Fonderia è molto più di un semplice bar. È un luogo dove l'atmosfera industriale incontra il calore dell'accoglienza, dove ogni sera si trasforma in un'esperienza unica tra ottime birre artigianali, cocktail creativi e musica dal vivo.</p>
                     <p>Nel cuore di Treviso, in Via Fonderia 113, troverai uno spazio pensato per chi ama vivere la notte con stile, tra amici e buona musica.</p>
                     <div class="about-stats">
                         <div class="stat">
-                            <span class="stat-num">13K</span>
+                            <span class="stat-num counter" data-target="13000" data-suffix="+">0</span>
                             <span class="stat-label">Follower Instagram</span>
                         </div>
                         <div class="stat">
-                            <span class="stat-num">550+</span>
+                            <span class="stat-num counter" data-target="550" data-suffix="+">0</span>
                             <span class="stat-label">Post</span>
                         </div>
                         <div class="stat">
@@ -130,7 +131,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="about-image" data-aos="fade-left">
+                <div class="about-image reveal-right parallax-img" data-speed="0.1">
                     <img src="images/gallery3.jpg" alt="Interno Fonderia Treviso">
                     <div class="about-image-accent"></div>
                 </div>
@@ -138,35 +139,35 @@
         </div>
     </section>
 
-    <section class="experience" id="experience">
+    <section class="experience aurora-bg" id="experience">
         <div class="container">
-            <div class="section-header" data-aos="fade-up">
+            <div class="section-header reveal">
                 <span class="section-label">Cosa Troverai</span>
                 <h2 class="section-title">L'Esperienza Fonderia</h2>
             </div>
-            <div class="experience-grid">
-                <div class="exp-card" data-aos="fade-up" data-aos-delay="0">
+            <div class="experience-grid stagger-children">
+                <div class="exp-card tilt-card spotlight-card">
                     <div class="exp-icon">
                         <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 48h32M20 48V24a12 12 0 0 1 24 0v24M28 48V32a4 4 0 0 1 8 0v16"/></svg>
                     </div>
                     <h3>Ottime Birre</h3>
                     <p>Selezione di birre artigianali locali e internazionali, alla spina e in bottiglia. Freschezza e qualità in ogni sorso.</p>
                 </div>
-                <div class="exp-card" data-aos="fade-up" data-aos-delay="100">
+                <div class="exp-card tilt-card spotlight-card">
                     <div class="exp-icon">
                         <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2"><path d="M32 8l24 40H8L32 8z"/><path d="M32 24v16M32 48v4"/></svg>
                     </div>
                     <h3>Buon Cibo</h3>
                     <p>Snack, taglieri e specialità pensate per accompagnare le tue serate. Sapori autentici che conquistano il palato.</p>
                 </div>
-                <div class="exp-card" data-aos="fade-up" data-aos-delay="200">
+                <div class="exp-card tilt-card spotlight-card">
                     <div class="exp-icon">
                         <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2"><circle cx="32" cy="32" r="24"/><path d="M20 32c0-6.6 5.4-12 12-12s12 5.4 12 12-5.4 12-12 12"/><circle cx="32" cy="32" r="4"/></svg>
                     </div>
                     <h3>Musica dal Vivo</h3>
                     <p>DJ set, band emergenti e spettacoli live. Ogni sera una nuova colonna sonora per le tue notti trevigiane.</p>
                 </div>
-                <div class="exp-card" data-aos="fade-up" data-aos-delay="300">
+                <div class="exp-card tilt-card spotlight-card">
                     <div class="exp-icon">
                         <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2"><path d="M48 48H16a8 8 0 0 1-8-8V24a8 8 0 0 1 8-8h32a8 8 0 0 1 8 8v16a8 8 0 0 1-8 8z"/><path d="M24 16v-4a8 8 0 0 1 16 0v4M32 32v8"/></svg>
                     </div>
@@ -179,14 +180,14 @@
 
     <section class="menu-section" id="menu">
         <div class="container">
-            <div class="menu-card" data-aos="fade-up">
+            <div class="menu-card reveal-scale">
                 <div class="menu-icon">
                     <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 20h48M12 20v28a4 4 0 0 0 4 4h32a4 4 0 0 0 4-4V20"/><path d="M24 12v8M40 12v8M20 32h4M30 32h4M40 32h4M20 40h4M30 40h4M40 40h4"/></svg>
                 </div>
                 <span class="section-label">Il Nostro Menu</span>
                 <h2>Scopri Cosa Ti Aspetta</h2>
                 <p>Dalle birre artigianali agli snack e ai cocktail, consulta il nostro menu completo online e preparati a vivere un'esperienza di gusto unica.</p>
-                <a href="https://fonderiatreviso.ordinaincloud.it/menu/15934" target="_blank" class="btn btn-primary">
+                <a href="https://fonderiatreviso.ordinaincloud.it/menu/15934" target="_blank" class="btn btn-primary magnetic-btn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                     Consulta il Menu Online
                 </a>
@@ -195,9 +196,9 @@
         </div>
     </section>
 
-    <section class="instagram" id="gallery">
+    <section class="instagram aurora-bg" id="gallery">
         <div class="container">
-            <div class="insta-header" data-aos="fade-up">
+            <div class="insta-header reveal">
                 <div class="insta-profile">
                     <div class="insta-avatar">
                         <img src="https://scontent-mxp2-1.cdninstagram.com/v/t51.2885-19/301131011_151959850811148_2453486274223469012_n.jpg?stp=dst-jpg_s100x100_tt6&_nc_cat=105&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D&_nc_ohc=QJxeYj5foYwQ7kNvwEf-EgI&_nc_oc=AdpHWqhhmsKp6tF5FprN8O-27_cZOuAZ7vy5p7LVt0fg3w5VE24Fq6Rdk-ZfaoX3IE0&_nc_zt=24&_nc_ht=scontent-mxp2-1.cdninstagram.com&_nc_ss=7f60f&oh=00_Af44c3Nq9icpZB-kxCM1pZ2T57AGolTwfbd7ROiqyyhC8w&oe=6A1BD899" alt="@fonderiatreviso" loading="lazy">
@@ -216,7 +217,7 @@
                 </a>
             </div>
 
-            <div class="insta-carousel-wrapper" data-aos="fade-up">
+            <div class="insta-carousel-wrapper reveal">
                 <button class="carousel-btn carousel-prev" aria-label="Precedente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
                 
                 <div class="insta-carousel" id="instaCarousel">
@@ -279,14 +280,14 @@
         </div>
     </section>
 
-    <section class="events" id="events">
+    <section class="events aurora-bg" id="events">
         <div class="container">
-            <div class="section-header" data-aos="fade-up">
+            <div class="section-header reveal">
                 <span class="section-label">Eventi</span>
                 <h2 class="section-title">Musica, Spettacoli & Serate</h2>
             </div>
-            <div class="events-grid">
-                <div class="event-card" data-aos="fade-up">
+            <div class="events-grid stagger-children">
+                <div class="event-card tilt-card">
                     <div class="event-date">
                         <span class="day">VEN</span>
                         <span class="time">21:00 - 04:00</span>
@@ -297,7 +298,7 @@
                         <span class="event-tag">DJ Set • Live Music</span>
                     </div>
                 </div>
-                <div class="event-card" data-aos="fade-up" data-aos-delay="100">
+                <div class="event-card tilt-card">
                     <div class="event-date">
                         <span class="day">SAB</span>
                         <span class="time">21:00 - 04:00</span>
@@ -309,9 +310,9 @@
                     </div>
                 </div>
             </div>
-            <div class="instagram-cta" data-aos="fade-up">
+            <div class="instagram-cta">
                 <p>Segui <a href="https://www.instagram.com/fonderiatreviso/" target="_blank">@fonderiatreviso</a> su Instagram per gli eventi in tempo reale</p>
-                <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="btn btn-primary">
+                <a href="https://www.instagram.com/fonderiatreviso/" target="_blank" class="btn btn-primary magnetic-btn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
                     Seguici su Instagram
                 </a>
@@ -319,10 +320,10 @@
         </div>
     </section>
 
-    <section class="contact" id="contact">
+    <section class="contact aurora-bg" id="contact">
         <div class="container">
             <div class="contact-grid">
-                <div class="contact-info" data-aos="fade-right">
+                <div class="contact-info reveal-left">
                     <span class="section-label">Dove Siamo</span>
                     <h2 class="section-title">Ti Aspettiamo in Fonderia</h2>
                     <p>Pronto a vivere l'esperienza? Vieni a trovarci nel cuore di Treviso.</p>
@@ -349,23 +350,23 @@
                             </div>
                         </div>
                     </div>
-                    <a href="https://www.google.com/maps/search/?api=1&query=Via+Fonderia+113+Treviso" target="_blank" class="btn btn-primary">Naviga con Google Maps</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=Via+Fonderia+113+Treviso" target="_blank" class="btn btn-primary magnetic-btn">Naviga con Google Maps</a>
                 </div>
-                <div class="contact-map" data-aos="fade-left">
+                <div class="contact-map reveal-right">
                     <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2796.2!2d12.2449!3d45.6658!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x4779443e8d0c7f2b%3A0x6f6c0f0f0f0f0f0f!2sVia%20Fonderia%2C%20113%2C%2031100%20Treviso%20TV!5e0!3m2!1sit!2sit!4v1700000000000!5m2!1sit!2sit" width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
                 </div>
             </div>
         </div>
     </section>
 
-    <section class="faq" id="faq">
+    <section class="faq aurora-bg" id="faq">
         <div class="container">
-            <div class="section-header" data-aos="fade-up">
+            <div class="section-header reveal">
                 <span class="section-label">Domande Frequenti</span>
                 <h2 class="section-title">Tutto Quello Che Devi Sapere</h2>
             </div>
-            <div class="faq-grid">
-                <div class="faq-item" data-aos="fade-up">
+            <div class="faq-grid stagger-children">
+                <div class="faq-item reveal-scale">
                     <button class="faq-question" aria-expanded="false">
                         <span>Quali eventi si tengono in Fonderia?</span>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -374,7 +375,7 @@
                         <p>Ogni venerdì e sabato serata dalle 21:00 alle 04:00. DJ set, musica dal vivo, special guest e serate a tema. Segui <a href="https://www.instagram.com/fonderiatreviso/" target="_blank">@fonderiatreviso</a> su Instagram per gli eventi in tempo reale.</p>
                     </div>
                 </div>
-                <div class="faq-item" data-aos="fade-up" data-aos-delay="50">
+                <div class="faq-item reveal-scale">
                     <button class="faq-question" aria-expanded="false">
                         <span>Dove posso consultare il menu?</span>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -383,7 +384,7 @@
                         <p>Il menu completo è disponibile online su <a href="https://fonderiatreviso.ordinaincloud.it/menu/15934" target="_blank">ordinaincloud.it</a>. Troverai birre artigianali, cocktail, snack e taglieri.</p>
                     </div>
                 </div>
-                <div class="faq-item" data-aos="fade-up" data-aos-delay="100">
+                <div class="faq-item reveal-scale">
                     <button class="faq-question" aria-expanded="false">
                         <span>Quali sono gli orari di apertura?</span>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -392,7 +393,7 @@
                         <p>Siamo aperti venerdì e sabato, dalle 21:00 alle 04:00. Per eventi speciali e aperture straordinarie, segui i nostri canali social.</p>
                     </div>
                 </div>
-                <div class="faq-item" data-aos="fade-up" data-aos-delay="150">
+                <div class="faq-item reveal-scale">
                     <button class="faq-question" aria-expanded="false">
                         <span>Cosa dicono le recensioni di Fonderia?</span>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -401,7 +402,7 @@
                         <p>Fonderia è amata per la sua atmosfera industriale, le ottime birre artigianali e la musica dal vivo. Ci trovi su <a href="https://www.tripadvisor.it/Restaurant_Review-g187869-d23233839-Reviews-Fonderia_Treviso-Treviso_Province_of_Treviso_Veneto.html" target="_blank">TripAdvisor</a> e <a href="https://restaurantguru.it/Fonderia-Treviso" target="_blank">RestaurantGuru</a>.</p>
                     </div>
                 </div>
-                <div class="faq-item" data-aos="fade-up" data-aos-delay="200">
+                <div class="faq-item reveal-scale">
                     <button class="faq-question" aria-expanded="false">
                         <span>Cosa fate a Capodanno?</span>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -410,7 +411,7 @@
                         <p>Per Capodanno e le festività proponiamo serate speciali con menu dedicati, open bar e musica fino all'alba. Le prenotazioni si aprono qualche settimana prima: contattaci al <a href="tel:+393204137183">+39 320 413 7183</a>.</p>
                     </div>
                 </div>
-                <div class="faq-item" data-aos="fade-up" data-aos-delay="250">
+                <div class="faq-item reveal-scale">
                     <button class="faq-question" aria-expanded="false">
                         <span>C'è un'età minima per entrare?</span>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -419,7 +420,7 @@
                         <p>L'ingresso è consentito ai maggiorenni. È richiesto un documento d'identità valido all'ingresso.</p>
                     </div>
                 </div>
-                <div class="faq-item" data-aos="fade-up" data-aos-delay="300">
+                <div class="faq-item reveal-scale">
                     <button class="faq-question" aria-expanded="false">
                         <span>Dove si trova esattamente Fonderia?</span>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -428,7 +429,7 @@
                         <p>Siamo in <strong>Via Fonderia, 113, 31100 Treviso (TV)</strong>, nel cuore del centro storico trevigiano. A pochi passi da Piazza dei Signori.</p>
                     </div>
                 </div>
-                <div class="faq-item" data-aos="fade-up" data-aos-delay="350">
+                <div class="faq-item reveal-scale">
                     <button class="faq-question" aria-expanded="false">
                         <span>Come arrivo in Via Fonderia?</span>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -486,5 +487,6 @@
     </button>
     <script src="app.js"></script>
     <script src="wow.js"></script>
+    <script src="wow2.js"></script>
 </body>
 </html>
