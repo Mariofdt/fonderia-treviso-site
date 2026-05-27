@@ -160,93 +160,87 @@ function initCustomCursor() {
 }
 
 // ----------------------------------------
-// 4. SOUND TOGGLE (Procedural ambient)
-// ----------------------------------------
-function initSoundToggle() {
-    const btn = document.getElementById('soundToggle');
-    if (!btn) return;
-    
-    let audioCtx = null;
-    let isPlaying = false;
-    let nodes = [];
-    
-    btn.addEventListener('click', () => {
-        if (!isPlaying) {
-            startAmbient();
-            btn.classList.add('active');
-            document.getElementById('soundIconOff').style.display = 'none';
-            document.getElementById('soundIconOn').style.display = 'block';
-            isPlaying = true;
-        } else {
-            stopAmbient();
-            btn.classList.remove('active');
-            document.getElementById('soundIconOff').style.display = 'block';
-            document.getElementById('soundIconOn').style.display = 'none';
-            isPlaying = false;
-        }
-    });
-    
-    function startAmbient() {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        // Create a deep bass drone
-        const osc1 = audioCtx.createOscillator();
-        const gain1 = audioCtx.createGain();
-        osc1.type = 'sine';
-        osc1.frequency.value = 55;
-        gain1.gain.value = 0.03;
-        osc1.connect(gain1);
-        gain1.connect(audioCtx.destination);
-        osc1.start();
-        nodes.push(osc1, gain1);
-        
-        // Create a higher harmonic
-        const osc2 = audioCtx.createOscillator();
-        const gain2 = audioCtx.createGain();
-        osc2.type = 'triangle';
-        osc2.frequency.value = 110;
-        gain2.gain.value = 0.01;
-        osc2.connect(gain2);
-        gain2.connect(audioCtx.destination);
-        osc2.start();
-        nodes.push(osc2, gain2);
-        
-        // Very subtle noise for texture
-        const bufferSize = audioCtx.sampleRate * 2;
-        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = (Math.random() * 2 - 1) * 0.005;
-        }
-        const noise = audioCtx.createBufferSource();
-        noise.buffer = buffer;
-        noise.loop = true;
-        const noiseGain = audioCtx.createGain();
-        noiseGain.gain.value = 0.02;
-        const filter = audioCtx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 200;
-        noise.connect(filter);
-        filter.connect(noiseGain);
-        noiseGain.connect(audioCtx.destination);
-        noise.start();
-        nodes.push(noise, noiseGain, filter);
-    }
-    
-    function stopAmbient() {
-        nodes.forEach(n => {
-            try { n.stop(); } catch(e) {}
-            try { n.disconnect(); } catch(e) {}
-        });
-        nodes = [];
-        if (audioCtx) {
-            audioCtx.close();
-            audioCtx = null;
-        }
-    }
-}
+/* SOUND TOGGLE REPLACED BY music.js */
+// // 4. SOUND TOGGLE (Procedural ambient)
+// // ----------------------------------------
+// function initSoundToggle() {
+//     const btn = document.getElementById('soundToggle');
+//     if (!btn) return;
+//     let audioCtx = null;
+//     let isPlaying = false;
+//     let nodes = [];
+//     btn.addEventListener('click', () => {
+//         if (!isPlaying) {
+//             startAmbient();
+//             btn.classList.add('active');
+//             document.getElementById('soundIconOff').style.display = 'none';
+//             document.getElementById('soundIconOn').style.display = 'block';
+//             isPlaying = true;
+//         } else {
+//             stopAmbient();
+//             btn.classList.remove('active');
+//             document.getElementById('soundIconOff').style.display = 'block';
+//             document.getElementById('soundIconOn').style.display = 'none';
+//             isPlaying = false;
+//         }
+//     });
+//     function startAmbient() {
+//         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+//         // Create a deep bass drone
+//         const osc1 = audioCtx.createOscillator();
+//         const gain1 = audioCtx.createGain();
+//         osc1.type = 'sine';
+//         osc1.frequency.value = 55;
+//         gain1.gain.value = 0.03;
+//         osc1.connect(gain1);
+//         gain1.connect(audioCtx.destination);
+//         osc1.start();
+//         nodes.push(osc1, gain1);
+//         // Create a higher harmonic
+//         const osc2 = audioCtx.createOscillator();
+//         const gain2 = audioCtx.createGain();
+//         osc2.type = 'triangle';
+//         osc2.frequency.value = 110;
+//         gain2.gain.value = 0.01;
+//         osc2.connect(gain2);
+//         gain2.connect(audioCtx.destination);
+//         osc2.start();
+//         nodes.push(osc2, gain2);
+//         // Very subtle noise for texture
+//         const bufferSize = audioCtx.sampleRate * 2;
+//         const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+//         const data = buffer.getChannelData(0);
+//         for (let i = 0; i < bufferSize; i++) {
+//             data[i] = (Math.random() * 2 - 1) * 0.005;
+//         }
+//         const noise = audioCtx.createBufferSource();
+//         noise.buffer = buffer;
+//         noise.loop = true;
+//         const noiseGain = audioCtx.createGain();
+//         noiseGain.gain.value = 0.02;
+//         const filter = audioCtx.createBiquadFilter();
+//         filter.type = 'lowpass';
+//         filter.frequency.value = 200;
+//         noise.connect(filter);
+//         filter.connect(noiseGain);
+//         noiseGain.connect(audioCtx.destination);
+//         noise.start();
+//         nodes.push(noise, noiseGain, filter);
+//     }
+//     function stopAmbient() {
+//         nodes.forEach(n => {
+//             try { n.stop(); } catch(e) {}
+//             try { n.disconnect(); } catch(e) {}
+//         });
+//         nodes = [];
+//         if (audioCtx) {
+//             audioCtx.close();
+//             audioCtx = null;
+//         }
+//     }
+// }
+// // ----------------------------------------
 
-// ----------------------------------------
 // 5. GLITCH TEXT EFFECT
 // ----------------------------------------
 function initGlitchEffect() {
