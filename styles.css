@@ -1462,3 +1462,35 @@ a {
         font-size: 12px;
     }
 }
+
+/* Domain text styling */
+.nav-domain {
+    font-family: var(--font-heading);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: lowercase;
+    color: var(--color-primary);
+    margin-left: 12px;
+    opacity: 0.9;
+    transition: opacity 0.3s ease;
+}
+.nav-logo:hover .nav-domain {
+    opacity: 1;
+}
+
+.footer-domain {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--color-primary);
+    margin: 8px 0;
+    text-transform: lowercase;
+}
+
+@media (max-width: 768px) {
+    .nav-domain {
+        display: none;
+    }
+}
