@@ -1,0 +1,182 @@
+/* ========================================
+   BOOKING MODAL - Glassmorphism
+   ======================================== */
+
+.booking-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(6, 6, 6, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.booking-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.booking-modal {
+    background: var(--color-surface);
+    border: 1px solid rgba(196, 93, 38, 0.2);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 40px;
+    position: relative;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.6), 0 0 60px rgba(196, 93, 38, 0.08);
+    transform: translateY(30px) scale(0.96);
+    transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
+}
+
+.booking-overlay.active .booking-modal {
+    transform: translateY(0) scale(1);
+}
+
+.booking-close {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(196, 93, 38, 0.1);
+    border: 1px solid rgba(196, 93, 38, 0.2);
+    color: var(--color-text);
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.booking-close:hover {
+    background: var(--color-primary);
+    color: var(--color-bg);
+    transform: rotate(90deg);
+}
+
+.booking-header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.booking-header h3 {
+    font-family: var(--font-heading);
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--color-white);
+    margin-bottom: 8px;
+}
+
+.booking-header p {
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+}
+
+.booking-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.booking-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.booking-group label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-primary);
+}
+
+.booking-group input,
+.booking-group select,
+.booking-group textarea {
+    background: rgba(6, 6, 6, 0.5);
+    border: 1px solid rgba(240, 235, 227, 0.1);
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: var(--color-text);
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+    outline: none;
+}
+
+.booking-group input:focus,
+.booking-group select:focus,
+.booking-group textarea:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(196, 93, 38, 0.15);
+}
+
+.booking-group input::placeholder,
+.booking-group textarea::placeholder {
+    color: var(--color-text-muted);
+    opacity: 0.6;
+}
+
+.booking-group select option {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.booking-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 12px;
+}
+
+.booking-submit {
+    margin-top: 8px;
+    width: 100%;
+    justify-content: center;
+    gap: 10px;
+    padding: 16px 32px;
+    font-size: 15px;
+    letter-spacing: 0.1em;
+    background: #25d366;
+    border-color: #25d366;
+    color: #fff;
+}
+
+.booking-submit:hover {
+    background: #128c7e;
+    border-color: #128c7e;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(37, 211, 102, 0.3);
+}
+
+.booking-submit svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+    stroke: none;
+}
+
+@media (max-width: 600px) {
+    .booking-modal {
+        padding: 28px 20px;
+        max-height: 95vh;
+    }
+    .booking-row {
+        grid-template-columns: 1fr;
+    }
+}
