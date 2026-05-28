@@ -220,7 +220,7 @@ a {
     font-family: var(--font-heading);
     font-size: clamp(2.5rem, 8vw, 6rem);
     font-weight: 700;
-    line-height: 1.05;
+    line-height: 0.95;
     margin-bottom: 24px;
     color: var(--color-white);
 }
@@ -238,27 +238,29 @@ a {
 
 .hero-title .line-small {
     font-family: var(--font-heading);
-    font-size: 0.5em;
-    font-weight: 400;
-    letter-spacing: 0.2em;
+    font-size: clamp(0.9rem, 2vw, 1.3rem);
+    font-weight: 500;
+    letter-spacing: 0.35em;
     text-transform: uppercase;
-    opacity: 0.9;
+    opacity: 0.85;
+    margin-bottom: 8px;
+    color: var(--color-primary);
 }
 
 .hero-title .line-big {
     font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.5em;
+    font-size: clamp(3.5rem, 12vw, 9rem);
     font-weight: 400;
-    letter-spacing: 0.08em;
-    line-height: 0.9;
-    margin-top: -0.05em;
+    letter-spacing: 0.06em;
+    line-height: 0.85;
+    margin-top: 4px;
     color: #ffffff;
     text-shadow:
-        0 2px 0 rgba(0,0,0,0.6),
-        0 0 20px rgba(196, 93, 38, 0.4),
-        0 0 50px rgba(255, 107, 26, 0.15);
+        0 3px 0 rgba(0,0,0,0.7),
+        0 0 30px rgba(196, 93, 38, 0.5),
+        0 0 80px rgba(255, 107, 26, 0.2);
     animation: forgeGlow 3s ease-in-out infinite alternate;
-    -webkit-text-stroke: 1px rgba(0,0,0,0.25);
+    -webkit-text-stroke: 1.5px rgba(0,0,0,0.3);
 }
 
 @keyframes forgeGlow {
@@ -266,14 +268,7 @@ a {
     100% { text-shadow: 0 2px 0 rgba(0,0,0,0.6), 0 0 25px rgba(196,93,38,0.5), 0 0 60px rgba(255,107,26,0.2); }
 }
 
-.hero-title .ampersand {
-    font-size: 0.35em;
-    color: var(--color-primary);
-    font-style: italic;
-    font-weight: 400;
-    font-family: var(--font-heading);
-    line-height: 1.2;
-}
+
 
 .hero-subtitle {
     font-size: clamp(1rem, 2.5vw, 1.4rem);
