@@ -22,6 +22,11 @@ let _storagePromise = null;
 let _functionsPromise = null;
 let _fsMod = null;
 
+// App Check (reCAPTCHA Enterprise): protegge le callable enforced
+// (redeemQr) da bot/brute-force. Init SOLO sui domini di produzione —
+// su localhost gli emulatori non verificano App Check.
+const APPCHECK_SITE_KEY = '6Lchs7YtAAAAAHc7xcS-yz9B_6aw7KwNRHh2oWYY'; // pubblica per design
+
 // ----------------------------------------
 // App (shared)
 // ----------------------------------------
@@ -30,7 +35,19 @@ function getApp() {
         _appPromise = (async () => {
             if (!window.FB_CONFIG) throw new Error('[firebase] FB_CONFIG mancante: carica firebase-config.js prima dei moduli');
             const { initializeApp } = await import(`${CDN_BASE}/firebase-app.js`);
-            return initializeApp(window.FB_CONFIG);
+            const app = initializeApp(window.FB_CONFIG);
+            if (!IS_LOCAL) {
+                try {
+                    const { initializeAppCheck, ReCaptchaEnterpriseProvider } = await import(`${CDN_BASE}/firebase-app-check.js`);
+                    initializeAppCheck(app, {
+                        provider: new ReCaptchaEnterpriseProvider(APPCHECK_SITE_KEY),
+                        isTokenAutoRefreshEnabled: true
+                    });
+                } catch (e) {
+                    console.warn('[firebase] App Check non inizializzato:', e && e.message);
+                }
+            }
+            return app;
         })();
     }
     return _appPromise;

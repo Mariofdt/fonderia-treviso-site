@@ -1122,7 +1122,10 @@ exports.peekClaim = onCall(
 // restituiscono i dati del riscatto esistente (chi/quando/via) così lo staff
 // capisce cosa è successo; la bruciatura resta protetta dalla transazione.
 exports.redeemQr = onCall(
-  { region: 'europe-west1', maxInstances: 2 },
+  // App Check obbligatorio: riscatta.html è pubblica e il PIN numerico è
+  // l'unica barriera anti-brute-force. Il client inizializza App Check
+  // (reCAPTCHA Enterprise) da firebase-init.js.
+  { region: 'europe-west1', maxInstances: 2, enforceAppCheck: true, consumeAppCheckToken: true },
   async (req) => {
     const email = req.auth && req.auth.token && req.auth.token.email;
     // Canale di autorizzazione reale (fix R1-M1): un socio loggato NON admin
