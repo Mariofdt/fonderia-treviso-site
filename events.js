@@ -37,6 +37,8 @@ async function initEvents() {
 
         grid.innerHTML = '';
         events.forEach(ev => grid.appendChild(renderEventCard(ev)));
+        // Bottoni Condividi anche sulle card renderizzate da Firestore
+        if (window.FonderiaShare) window.FonderiaShare.mount(grid);
     } catch (err) {
         // Rete off / Firestore non raggiungibile: le card statiche restano
         console.warn('[events] Firestore non disponibile, uso le card statiche.', err);
