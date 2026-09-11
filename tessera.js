@@ -1,7 +1,9 @@
 // ========================================
 // FONDERIA TREVISO - Tessera socio (gamification)
-// URL canonico: tessera.html?t=<token>. Senza ?t= si prova la tessera
-// salvata sul device (localStorage fond.tessera.<token>).
+// Ingresso: tessera.html?t=<token> (link ricevuto all'iscrizione).
+// Senza ?t= si prova la tessera salvata sul device (localStorage
+// fond.tessera.<token>). Dopo un caricamento riuscito il token viene
+// rimosso dall'URL (replaceState): resta solo in localStorage.
 // Contratto: getTessera({token}) → { memberId, name, refCode,
 //   referralCount, badges[{id,name,icon,description}],
 //   claims[{promoId,promoTitle,prizeLabel,status,qrUrl(solo issued),redeemedAt}],
@@ -121,13 +123,14 @@ function claimChip(claim) {
   return '';
 }
 
+// NB: `claims` DEVE arrivare gia' ordinato da renderTessera — l'indice i
+// di id="qr-i" e la stessa posizione nell'array usato dal loop QR li
+// sotto. Ordinare qui una seconda copia ricreerebbe il mismatch F1.
 function claimsHtml(claims) {
   if (!claims.length) {
     return `<p class="tessera-empty">Nessun premio ancora: partecipa a una promozione qui sotto per sbloccarne uno.</p>`;
   }
   return claims
-    .slice()
-    .sort((a, b) => (STATUS_ORDER[a.status] ?? 3) - (STATUS_ORDER[b.status] ?? 3))
     .map((c, i) => {
       // QR solo se il server ha mandato qrUrl (invariante: solo issued).
       const hasQr = c.status === 'issued' && typeof c.qrUrl === 'string' && c.qrUrl.length > 0;
@@ -139,7 +142,8 @@ function claimsHtml(claims) {
         </div>
         <p class="tessera-claim-promo">${esc(c.promoTitle || 'Promozione')}</p>
         ${hasQr ? `
-        <div class="tessera-qr-frame"><div class="tessera-qr" id="qr-${i}"></div></div>
+        <div class="tessera-qr-frame"><div class="tessera-qr" id="qr-${i}" role="img"
+             aria-label="Codice QR per il premio ${esc(c.prizeLabel || 'premio')}"></div></div>
         <p class="tessera-qr-hint">Mostra questo QR al banco per ritirare il premio.</p>` : ''}
       </section>`;
     }).join('');
@@ -170,17 +174,26 @@ function promosHtml(promos) {
 }
 
 function renderTessera(token, data) {
-  const claims = Array.isArray(data.claims) ? data.claims : [];
+  // UN solo array ordinato per HTML e loop QR: gli id "qr-<i>" combaciano
+  // perche' puntano allo stesso ordine (fix F1).
+  const claims = (Array.isArray(data.claims) ? data.claims : [])
+    .slice()
+    .sort((a, b) => (STATUS_ORDER[a.status] ?? 3) - (STATUS_ORDER[b.status] ?? 3));
   const badges = Array.isArray(data.badges) ? data.badges : [];
   const promos = Array.isArray(data.activePromos) ? data.activePromos : [];
   const refCode = data.refCode || '';
   const refCount = data.referralCount || 0;
-  const shareUrl = location.origin + '/promo.html?ref=' + encodeURIComponent(refCode);
+  // refCode vuoto (non dovrebbe, ma il contratto non lo garantisce):
+  // link alla promo nuda, mai "?ref=".
+  const shareUrl = refCode
+    ? location.origin + '/promo.html?ref=' + encodeURIComponent(refCode)
+    : location.origin + '/promo.html';
 
   app.innerHTML = `
     <p class="tessera-badge">La mia tessera</p>
     <h1 class="tessera-title">${esc(data.name || 'Socio Fonderia')}</h1>
-    <p class="tessera-refcode">Codice invito: <strong>${esc(refCode)}</strong></p>
+    <p class="tessera-refcode">Codice invito: <strong>${esc(refCode)}</strong>
+      <button type="button" class="tessera-refresh" id="refreshBtn">↻ Aggiorna</button></p>
 
     <h2 class="tessera-h2">I miei premi</h2>
     <div class="tessera-claims">${claimsHtml(claims)}</div>
@@ -191,25 +204,47 @@ function renderTessera(token, data) {
     <h2 class="tessera-h2">Invita gli amici</h2>
     <p class="tessera-desc">Inviti registrati col tuo codice: <strong class="tessera-accent">${refCount}</strong></p>
     <button type="button" class="btn btn-primary tessera-btn" id="shareBtn">Invita amici</button>
-    <p class="tessera-toast" id="shareToast" hidden>Link copiato!</p>
+    <p class="tessera-toast" id="shareToast" hidden></p>
 
     ${promosHtml(promos)}
     <a class="tessera-link" href="/">← Torna al sito</a>`;
 
-  // QR dopo che i contenitori sono nel DOM (davidshimjs disegna dentro l'elemento)
+  // QR dopo che i contenitori sono nel DOM (davidshimjs disegna dentro l'elemento).
+  // Indici dell'array ORDINATO: stesso array passato a claimsHtml (fix F1).
   claims.forEach((c, i) => {
-    if (c.status === 'issued' && typeof c.qrUrl === 'string' && c.qrUrl.length > 0) {
-      const el = document.getElementById('qr-' + i);
-      if (el && window.QRCode) {
-        new QRCode(el, {
-          text: c.qrUrl,
-          width: 220,
-          height: 220,
-          colorDark: '#000000',
-          colorLight: '#ffffff',
-          correctLevel: QRCode.CorrectLevel.M,
-        });
-      }
+    if (c.status !== 'issued' || typeof c.qrUrl !== 'string' || !c.qrUrl.length) return;
+    const el = document.getElementById('qr-' + i);
+    if (!el) return;
+    if (!window.QRCode) {
+      // libreria non caricata: niente cornice bianca muta + hint ingannevole
+      el.classList.add('tessera-qr-fallback');
+      el.textContent = 'QR non disponibile — ricarica la pagina';
+      const hint = el.closest('.tessera-claim')?.querySelector('.tessera-qr-hint');
+      if (hint) hint.hidden = true;
+      return;
+    }
+    new QRCode(el, {
+      text: c.qrUrl,
+      width: 220,
+      height: 220,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+  });
+
+  // F3: refresh manuale (lo stesso getTessera gira anche su visibilitychange)
+  const refreshBtn = document.getElementById('refreshBtn');
+  refreshBtn.addEventListener('click', async () => {
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = 'Aggiorno…';
+    await refreshTessera(token);
+    const stillThere = document.getElementById('refreshBtn');
+    // Se il refresh ha ridisegnato la pagina il bottone e' gia' nuovo;
+    // su errore di rete la UI resta e va riabilitato.
+    if (stillThere === refreshBtn) {
+      refreshBtn.disabled = false;
+      refreshBtn.textContent = '↻ Aggiorna';
     }
   });
 
@@ -224,15 +259,49 @@ function renderTessera(token, data) {
       try { await navigator.share(payload); return; }
       catch (e) { if (e && e.name === 'AbortError') return; /* utente ha annullato */ }
     }
+    const toast = document.getElementById('shareToast');
     try {
       await navigator.clipboard.writeText(shareUrl);
+      toast.textContent = 'Link copiato!';
     } catch {
-      // clipboard negata: mostra comunque l'URL nel toast
+      // clipboard negata: mostra l'URL intero da copiare a mano (F5)
+      toast.textContent = 'Copia questo link: ' + shareUrl;
     }
-    const toast = document.getElementById('shareToast');
-    toast.textContent = 'Link copiato!';
     toast.hidden = false;
-    setTimeout(() => { toast.hidden = true; }, 2500);
+    setTimeout(() => { toast.hidden = true; }, 4000);
+  });
+}
+
+// ----------------------------------------
+// Refresh (F3): dopo un riscatto al banco il socio torna alla pagina —
+// visibilitychange + bottone "Aggiorna" rileggono getTessera. Se un claim
+// e' passato issued→redeemed, il QR sparisce e resta il chip: voluto.
+// ----------------------------------------
+let refreshing = false;
+
+async function refreshTessera(token) {
+  if (refreshing) return;
+  refreshing = true;
+  try {
+    const res = await (await callable('getTessera'))({ token });
+    const data = res.data || {};
+    if (typeof data.memberId === 'string') saveTessera(token, data.memberId);
+    renderTessera(token, data);
+  } catch (err) {
+    if (isInvalidTokenError(err)) {
+      clearTesseraKeys();
+      renderNotFound(true);
+      return;
+    }
+    // rete/server: la pagina esistente resta com'e', nessuna distruzione UI
+  } finally {
+    refreshing = false;
+  }
+}
+
+function bindAutoRefresh(token) {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshTessera(token);
   });
 }
 
@@ -242,7 +311,6 @@ function renderTessera(token, data) {
 async function init() {
   const params = new URLSearchParams(location.search);
   let token = (params.get('t') || '').trim();
-  const fromUrl = !!token;
 
   if (!token) {
     const saved = savedTessera();
@@ -258,11 +326,14 @@ async function init() {
     const data = res.data || {};
     // Riallaccia il device (evince eventuali altre tessere, una sola per device)
     if (typeof data.memberId === 'string') saveTessera(token, data.memberId);
-    // URL canonico anche quando la tessera arriva da localStorage
-    if (!fromUrl && window.history && history.replaceState) {
-      history.replaceState(null, '', '?t=' + encodeURIComponent(token));
-    }
     renderTessera(token, data);
+    bindAutoRefresh(token);
+    // F2: token MAI nell'URL dopo un caricamento riuscito. La tessera e'
+    // gia' in localStorage, quindi lo scrub e' safe sia se ?t= arrivava
+    // dal link sia se mancava (localStorage).
+    if (window.history && history.replaceState) {
+      history.replaceState(null, '', location.pathname);
+    }
   } catch (err) {
     if (isInvalidTokenError(err)) {
       clearTesseraKeys();

@@ -112,6 +112,32 @@
     letter-spacing: 1px;
 }
 
+/* Bottone refresh discreto, inline col refcode */
+.tessera-refresh {
+    background: none;
+    border: 1px solid rgba(240, 235, 227, 0.25);
+    border-radius: 999px;
+    color: var(--color-text-muted);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 10px;
+    margin-left: 10px;
+    cursor: pointer;
+    vertical-align: middle;
+    transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+.tessera-refresh:hover {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+}
+
+.tessera-refresh:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
 .tessera-notice {
     font-size: 14px;
     line-height: 1.45;
@@ -259,6 +285,16 @@
 .tessera-qr table {
     max-width: 100% !important;
     height: auto !important;
+}
+
+/* Libreria QR non caricata: testo di fallback scuro sul box bianco */
+.tessera-qr-fallback {
+    color: #333333;
+    font-size: 13px;
+    line-height: 1.45;
+    text-align: center;
+    padding: 12px;
+    box-sizing: border-box;
 }
 
 .tessera-qr-hint {
