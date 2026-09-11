@@ -64,16 +64,28 @@ document.addEventListener('DOMContentLoaded', () => {
             try { window.instgrm.Embeds.process(); } catch (e) { /* noop */ }
         }
 
-        const pending = blockquotes().filter((bq) => !bq.querySelector('iframe'));
+        // Un embed "sano" ha iframe E altezza reale (la card renderizzata e' ~500-600px).
+        // iframe presente ma card bassa = frame bloccato a meta' (cookie terze parti
+        // bloccati, container privacy): resta una barra/linetop bianca vuota.
+        const pending = blockquotes().filter((bq) => {
+            const ifr = bq.querySelector('iframe');
+            if (!ifr) return true;
+            const post = bq.closest('.insta-embed-post');
+            return !post || post.clientHeight < 300;
+        });
         if (ready && !pending.length) { clearInterval(retry); return; }
 
-        // Timeout per-embed: embed presente ma questo post non renderizza
-        if (ready && attempts >= 25) pending.forEach(igFallback);
-
-        // embed.js mai caricato → sicuramente bloccato da estensione/rete
-        if (!ready && attempts >= 8) {
+        if (!ready && attempts >= 3) {
+            // embed.js mai caricato in 6s → bloccato estensione/rete: fallback subito
             pending.forEach(igFallback);
             showBlockedNote();
+            clearInterval(retry);
+            return;
+        }
+        if (ready && attempts >= 12) {
+            // embed.js c'è ma i post non renderizzano in ~24s → fallback per quelli morti
+            if (pending.length === blockquotes().length) showBlockedNote();
+            pending.forEach(igFallback);
         }
         if (attempts >= 30) clearInterval(retry);
     }, 2000);
