@@ -1,0 +1,11 @@
+{
+  "name": "fonderia-seed",
+  "description": "Fonderia Treviso — seed una-tantum Firestore (Admin SDK)",
+  "private": true,
+  "scripts": {
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

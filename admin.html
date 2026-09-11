@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Fonderia — Area Gestionale</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="admin.css">
+    <script src="firebase-config.js"></script>
+    <script type="module" src="admin.js"></script>
+</head>
+<body class="admin-body">
+
+    <!-- Schermata boot / caricamento -->
+    <div id="admBoot" class="adm-boot">
+        <p class="adm-boot-text">Caricamento area gestionale…</p>
+    </div>
+
+    <!-- Login con magic link (resi via JS da admin.js) -->
+    <div id="admLogin" class="adm-login" hidden></div>
+
+    <!-- Shell admin -->
+    <div id="admShell" hidden>
+        <header class="adm-header">
+            <div class="adm-header-inner">
+                <h1 class="adm-logo">FONDERIA <span>Gestionale</span></h1>
+                <div class="adm-user">
+                    <span id="admUserEmail" class="adm-user-email"></span>
+                    <button id="admLogout" class="adm-btn adm-btn-ghost" type="button">Esci</button>
+                </div>
+            </div>
+            <nav class="adm-tabs" id="admTabs">
+                <button class="adm-tab active" data-tab="events" type="button">Eventi</button>
+                <button class="adm-tab" data-tab="popups" type="button">Popup</button>
+                <button class="adm-tab" data-tab="bookings" type="button">Prenotazioni</button>
+                <button class="adm-tab" data-tab="newsletter" type="button">Newsletter</button>
+            </nav>
+        </header>
+
+        <main class="adm-main">
+            <section id="tab-events" class="adm-panel"></section>
+            <section id="tab-popups" class="adm-panel" hidden></section>
+            <section id="tab-bookings" class="adm-panel" hidden></section>
+            <section id="tab-newsletter" class="adm-panel" hidden></section>
+        </main>
+
+        <footer class="adm-footer">
+            <p>Per aggiungere un altro gestore: Firebase Console → Firestore → config/admin → allowedEmails</p>
+        </footer>
+    </div>
+
+    <!-- Area messaggi toast -->
+    <div id="admToast" class="adm-toast" hidden></div>
+
+</body>
+</html>

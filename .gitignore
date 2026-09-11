@@ -5,3 +5,16 @@ firebase-debug.*.log
 .firebaserc.local
 .DS_Store
 .omc/
+
+# backend Fonderia (stream 3)
+functions/.env
+functions/node_modules/
+seed/node_modules/
+test/node_modules/
+serviceAccountKey.json
+seed/serviceAccountKey.json
+
+# log emulatori
+firestore-debug.log
+firestore-debug.*.log
+ui-debug.log

@@ -1,0 +1,33 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Stessa whitelist di Firestore: config/admin { allowedEmails: [...] }.
+    function isAdminUser() {
+      return request.auth != null
+        && request.auth.token.email is string
+        && firestore.exists(/databases/(default)/documents/config/admin)
+        && request.auth.token.email in
+             firestore.get(/databases/(default)/documents/config/admin).data.allowedEmails;
+    }
+
+    // Sfondi popup caricati dall'area admin.
+    match /popup-images/{fileName} {
+      // immagini pubbliche (servono al sito)
+      allow read: if true;
+      // upload/sostituzione: solo admin, max 2MB, solo immagini
+      allow create, update: if isAdminUser()
+        && request.resource != null
+        && request.resource.size <= 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      // delete: solo admin (request.resource e' nullo in delete)
+      allow delete: if isAdminUser();
+    }
+
+    // default deny su tutto il resto del bucket
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

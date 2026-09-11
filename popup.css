@@ -1,0 +1,122 @@
+/* ========================================
+   FONDERIA TREVISO - Popup promozionale
+   z-index 998: sopra i contenuti, sotto booking
+   modal (9999), chat widget (1002) e float WA (1001)
+   ======================================== */
+
+.fond-popup-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 998;
+    background: rgba(6, 6, 6, 0.75);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.fond-popup-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.fond-popup-card {
+    background: var(--color-surface);
+    border: 1px solid rgba(255, 107, 26, 0.25);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 90vh;
+    overflow: hidden auto;
+    position: relative;
+    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6), 0 0 60px rgba(255, 107, 26, 0.12);
+    transform: translateY(30px) scale(0.96);
+    transition: transform 0.4s var(--transition-smooth);
+}
+
+.fond-popup-overlay.active .fond-popup-card {
+    transform: translateY(0) scale(1);
+}
+
+.fond-popup-media {
+    height: 220px;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+}
+
+.fond-popup-media::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent 40%, var(--color-surface));
+}
+
+.fond-popup-body {
+    padding: 28px 32px 36px;
+    text-align: center;
+}
+
+.fond-popup-body h3 {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-white);
+    margin-bottom: 12px;
+}
+
+.fond-popup-body p {
+    font-size: 0.95rem;
+    color: var(--color-text-muted);
+    line-height: 1.6;
+    margin-bottom: 24px;
+}
+
+.fond-popup-cta {
+    display: inline-flex;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 36px;
+    font-size: 14px;
+    letter-spacing: 0.08em;
+}
+
+.fond-popup-close {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(6, 6, 6, 0.6);
+    border: 1px solid rgba(240, 235, 227, 0.15);
+    color: var(--color-text);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.fond-popup-close:hover {
+    background: var(--color-primary);
+    color: var(--color-bg);
+    transform: rotate(90deg);
+}
+
+@media (max-width: 600px) {
+    .fond-popup-media {
+        height: 160px;
+    }
+
+    .fond-popup-body {
+        padding: 22px 20px 30px;
+    }
+}

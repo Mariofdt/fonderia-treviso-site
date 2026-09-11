@@ -1,0 +1,148 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // La whitelist vive in config/admin { allowedEmails: [...] }.
+    // exists() prima di get(): get su doc mancante fa fallire la rule.
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.email is string
+        && exists(/databases/$(database)/documents/config/admin)
+        && request.auth.token.email in
+             get(/databases/$(database)/documents/config/admin).data.allowedEmails;
+    }
+
+    function validEmail(s) {
+      return s is string
+        && s.size() <= 120
+        && s.matches('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$');
+    }
+
+    function validPhone(s) {
+      return s is string
+        && s.matches('^[+0-9][0-9 .()-]{5,24}$');
+    }
+
+    // ---------- contenuti pubblici ----------
+
+    // Eventi: lettura anonima solo dei doc attivi (query sempre con
+    // where('active','==',true)); scrittura solo admin.
+    match /events/{eventId} {
+      allow read: if isAdmin() || resource.data.active == true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Popup: stesso schema degli eventi.
+    match /popups/{popupId} {
+      allow read: if isAdmin() || resource.data.active == true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ---------- configurazione ----------
+
+    // config/admin: lettura solo ad utenti autenticati (serve ad admin.js
+    // per il check post-login); scrittura client vietata — la whitelist si
+    // modifica solo via Admin SDK (seed script / console), che bypassa le rules.
+    match /config/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ---------- prenotazioni ----------
+
+    function newBookingIsValid() {
+      let d = request.resource.data;
+      return
+        // shape: campi esatti, nessun extra (in particolare MAI 'emailed')
+        d.keys().hasOnly([
+          'name', 'date', 'time', 'guests', 'service', 'tableType',
+          'eventTitle', 'phone', 'note', 'source', 'status', 'createdAt',
+          'email'
+        ])
+        && d.keys().hasAll([
+          'name', 'date', 'time', 'guests', 'service', 'tableType',
+          'phone', 'note', 'source', 'status', 'createdAt'
+        ])
+        // no status forgery
+        && d.status == 'new'
+        // enum servizio
+        && d['service'] is string
+        && d['service'] in ['cena', 'after-cena', 'evento']
+        // ospiti: intero 1..50
+        && d.guests is int
+        && d.guests >= 1
+        && d.guests <= 50
+        // stringhe con cap di lunghezza
+        && d.name is string
+        && d.name.size() >= 2
+        && d.name.size() <= 80
+        && d.date is string
+        && d.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && d.time is string
+        && d.time.matches('^([01]\\d|2[0-3]):[0-5]\\d$')
+        && d.tableType is string
+        && d.tableType.size() >= 1
+        && d.tableType.size() <= 40
+        && (!d.keys().hasAny(['eventTitle'])
+            || (d.eventTitle is string && d.eventTitle.size() <= 140))
+        && validPhone(d.phone)
+        && d.note is string
+        && d.note.size() <= 500
+        // origine: 'site' oppure 'popup:<id>'
+        && d.source is string
+        && (d.source == 'site'
+            || d.source.matches('^popup:[A-Za-z0-9_-]{1,64}$'))
+        // timestamp lato server
+        && d.createdAt is timestamp
+        && d.createdAt == request.time
+        // email cliente opzionale, formato valido se presente
+        && (!d.keys().hasAny(['email']) || validEmail(d.email));
+    }
+
+    match /bookings/{bookingId} {
+      // create-only anonimo, forma validata. Il campo 'emailed' (scritto
+      // dalla Cloud Function via Admin SDK) non e' ammesso nel create pubblico.
+      allow create: if newBookingIsValid();
+      // lettura, cambio stato, cancellazione: solo admin.
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ---------- newsletter ----------
+
+    function newSubscriberIsValid() {
+      let d = request.resource.data;
+      return
+        d.keys().hasOnly(['email', 'phone', 'consent', 'consentAt'])
+        && d.keys().hasAll(['email', 'consent', 'consentAt'])
+        // consenso GDPR: literal true obbligatorio
+        && d.consent is bool
+        && d.consent == true
+        && validEmail(d.email)
+        && d.consentAt is timestamp
+        && d.consentAt == request.time
+        && (!d.keys().hasAny(['phone']) || validPhone(d.phone));
+    }
+
+    match /newsletter/{docId} {
+      // append-only: il docId e' l'email lowercase → create sulla stessa
+      // chiave fallisce come duplicato. Update vietato a tutti lato client.
+      allow create: if newSubscriberIsValid();
+      // export/elenco e cancellazione GDPR: solo admin.
+      allow read, delete: if isAdmin();
+      allow update: if false;
+    }
+
+    // ---------- default deny ----------
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
