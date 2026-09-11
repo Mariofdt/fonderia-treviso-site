@@ -67,6 +67,27 @@ beforeEach(async () => {
     await setDoc(doc(db, 'config', 'admin'), {
       allowedEmails: [ADMIN_EMAIL],
     });
+    await setDoc(doc(db, 'promos', 'active-promo'), {
+      title: 'Condividi la serata', prizeLabel: 'Drink omaggio',
+      actionType: 'tag_story', active: true,
+    });
+    await setDoc(doc(db, 'promos', 'inactive-promo'), {
+      title: 'Promo spenta', prizeLabel: 'Fritto omaggio',
+      actionType: 'custom', active: false,
+    });
+    await setDoc(doc(db, 'badges', 'badge-1'), {
+      name: 'Fedele', icon: '⭐',
+      rule: { metric: 'totalClaims', threshold: 3 }, active: true,
+    });
+    await setDoc(doc(db, 'config', 'gamification'), {
+      staffPin: '1234', prizeOptions: ['Drink omaggio'],
+    });
+    await setDoc(doc(db, 'members', 'm1'), {
+      name: 'Test', phone: '+393331234567', token: 'segreto',
+    });
+    await setDoc(doc(db, 'claims', 'p1_m1'), {
+      memberId: 'm1', promoId: 'p1', code: 'codice-segreto', status: 'issued',
+    });
     await setDoc(doc(db, 'events', 'active-event'), {
       title: 'Evento attivo',
       active: true,
@@ -196,5 +217,71 @@ describe('scritture contenuti', () => {
     await assertSucceeds(
       setDoc(doc(db, 'events', 'nuovo'), { title: 'x', active: true })
     );
+  });
+});
+
+describe('gamification — promos e badges', () => {
+  it('anon PUO\' leggere una promo attiva', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertSucceeds(getDoc(doc(db, 'promos', 'active-promo')));
+  });
+
+  it('anon NON puo\' leggere una promo inattiva', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(getDoc(doc(db, 'promos', 'inactive-promo')));
+  });
+
+  it('anon PUO\' leggere un badge attivo', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertSucceeds(getDoc(doc(db, 'badges', 'badge-1')));
+  });
+
+  it('anon NON puo\' scrivere promos', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(setDoc(doc(db, 'promos', 'x'), { title: 'x', active: true }));
+  });
+
+  it('admin PUO\' scrivere promos', async () => {
+    const db = testEnv.authenticatedContext('admin-uid', { email: ADMIN_EMAIL }).firestore();
+    await assertSucceeds(setDoc(doc(db, 'promos', 'x'), {
+      title: 'Nuova', prizeLabel: 'Drink omaggio', actionType: 'custom', active: true,
+    }));
+  });
+});
+
+describe('gamification — members, claims, config', () => {
+  it('anon NON puo\' leggere members', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(getDoc(doc(db, 'members', 'm1')));
+  });
+
+  it('anon NON puo\' creare members (solo via callable)', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(setDoc(doc(db, 'members', 'm2'), { name: 'X', phone: '+393339999999' }));
+  });
+
+  it('admin NON puo\' scrivere members dal client (contatori solo via function)', async () => {
+    const db = testEnv.authenticatedContext('admin-uid', { email: ADMIN_EMAIL }).firestore();
+    await assertFails(setDoc(doc(db, 'members', 'm2'), { name: 'X', phone: '+393339999999' }));
+  });
+
+  it('anon NON puo\' leggere claims', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(getDoc(doc(db, 'claims', 'p1_m1')));
+  });
+
+  it('admin PUO\' leggere claims (tabella admin)', async () => {
+    const db = testEnv.authenticatedContext('admin-uid', { email: ADMIN_EMAIL }).firestore();
+    await assertSucceeds(getDoc(doc(db, 'claims', 'p1_m1')));
+  });
+
+  it('config/gamification NON leggibile da utente loggato non-admin (staffPin)', async () => {
+    const db = testEnv.authenticatedContext('random-uid', { email: 'estraneo@example.com' }).firestore();
+    await assertFails(getDoc(doc(db, 'config', 'gamification')));
+  });
+
+  it('config/admin resta leggibile da utente loggato (check whitelist admin.js)', async () => {
+    const db = testEnv.authenticatedContext('random-uid', { email: 'estraneo@example.com' }).firestore();
+    await assertSucceeds(getDoc(doc(db, 'config', 'admin')));
   });
 });

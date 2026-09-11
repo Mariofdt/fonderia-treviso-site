@@ -47,12 +47,17 @@ service cloud.firestore {
 
     // ---------- configurazione ----------
 
-    // config/admin: lettura solo ad utenti autenticati (serve ad admin.js
-    // per il check post-login); scrittura client vietata — la whitelist si
-    // modifica solo via Admin SDK (seed script / console), che bypassa le rules.
-    match /config/{docId} {
+    // config/admin: lettura da utenti autenticati (check whitelist in admin.js).
+    // Scrittura client vietata — la whitelist si modifica solo via Admin SDK
+    // (seed script / console), che bypassa le rules.
+    match /config/admin {
       allow read: if isSignedIn();
       allow write: if false;
+    }
+
+    // config/gamification: staffPin e prizeOptions — SOLO admin.
+    match /config/gamification {
+      allow read, write: if isAdmin();
     }
 
     // ---------- prenotazioni ----------
@@ -137,6 +142,32 @@ service cloud.firestore {
       // export/elenco e cancellazione GDPR: solo admin.
       allow read, delete: if isAdmin();
       allow update: if false;
+    }
+
+    // ---------- gamification ----------
+
+    // Promo e badge: lettura anonima solo dei doc attivi; scrittura solo admin.
+    match /promos/{promoId} {
+      allow read: if isAdmin() || resource.data.active == true;
+      allow create, update, delete: if isAdmin();
+    }
+    match /badges/{badgeId} {
+      allow read: if isAdmin() || resource.data.active == true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // members: NESSUN accesso client (né anon né admin): creazione e lettura
+    // solo via callable (registerMember / getTessera). Il token tessera non
+    // deve mai essere leggibile dal client.
+    match /members/{memberId} {
+      allow read, write: if false;
+    }
+
+    // claims: lettura solo admin (tabella claim); scrittura solo via callable
+    // (docId composto <promoId>_<memberId> gestito dalle function).
+    match /claims/{claimId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // ---------- default deny ----------
