@@ -156,11 +156,15 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // members: NESSUN accesso client (né anon né admin): creazione e lettura
-    // solo via callable (registerMember / getTessera). Il token tessera non
-    // deve mai essere leggibile dal client.
+    // members: nessun accesso anonimo; creazione solo via callable
+    // (registerMember). Lettura da admin client (Task 11) per il join nome
+    // nella tabella claim e la sezione "Referral sospetti": l'admin è staff
+    // whitelistato e vede già nome/telefono in redeemQr; il token tessera
+    // resta non esposto al pubblico. Scrittura client vietata a TUTTI:
+    // contatori/badge si muovono solo dalle function.
     match /members/{memberId} {
-      allow read, write: if false;
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // claims: lettura solo admin (tabella claim); scrittura solo via callable

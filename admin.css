@@ -548,6 +548,88 @@
     border-color: rgba(240, 235, 227, 0.15);
 }
 
+/* ---------- Stati claim (gamification) ---------- */
+.adm-badge--claim-pending {
+    color: var(--color-accent);
+    border-color: rgba(255, 107, 26, 0.45);
+    background: rgba(255, 107, 26, 0.08);
+}
+
+.adm-badge--claim-issued {
+    color: #7dd88f;
+    border-color: rgba(125, 216, 143, 0.4);
+    background: rgba(125, 216, 143, 0.08);
+}
+
+.adm-badge--claim-redeemed {
+    color: #8ab8e0;
+    border-color: rgba(96, 139, 193, 0.45);
+    background: rgba(96, 139, 193, 0.08);
+}
+
+.adm-badge--claim-rejected {
+    color: #e08d8a;
+    border-color: rgba(214, 69, 65, 0.45);
+    background: rgba(214, 69, 65, 0.08);
+}
+
+.adm-badge--claim-suspicious {
+    color: #e8c26a;
+    border-color: rgba(232, 194, 106, 0.45);
+    background: rgba(232, 194, 106, 0.08);
+}
+
+/* ---------- Tab promozioni ---------- */
+.adm-subhead {
+    margin: 34px 0 10px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.adm-claims-wrap { margin-top: 10px; }
+
+.adm-cell-note {
+    max-width: 260px;
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+}
+
+.adm-cell-actions {
+    white-space: nowrap;
+}
+
+.adm-cell-actions .adm-btn + .adm-btn { margin-left: 6px; }
+
+/* ---------- Anteprima prova claim (overlay) ---------- */
+.adm-shot-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.82);
+    cursor: zoom-out;
+    padding: 24px;
+}
+
+.adm-shot-overlay img {
+    max-width: min(92vw, 720px);
+    max-height: 80vh;
+    border-radius: 12px;
+    border: 1px solid rgba(240, 235, 227, 0.2);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.adm-shot-hint {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+}
+
 /* ---------- Tabelle responsive ---------- */
 .adm-table-wrap {
     overflow-x: auto;

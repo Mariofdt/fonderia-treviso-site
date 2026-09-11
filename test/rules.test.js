@@ -255,6 +255,11 @@ describe('gamification — members, claims, config', () => {
     await assertFails(getDoc(doc(db, 'members', 'm1')));
   });
 
+  it('admin PUO\' leggere members (Task 11: join claim + referral sospetti)', async () => {
+    const db = testEnv.authenticatedContext('admin-uid', { email: ADMIN_EMAIL }).firestore();
+    await assertSucceeds(getDoc(doc(db, 'members', 'm1')));
+  });
+
   it('anon NON puo\' creare members (solo via callable)', async () => {
     const db = testEnv.unauthenticatedContext().firestore();
     await assertFails(setDoc(doc(db, 'members', 'm2'), { name: 'X', phone: '+393339999999' }));

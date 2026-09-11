@@ -561,6 +561,10 @@ const crypto = require('crypto');
 const { FieldValue, FieldPath } = require('firebase-admin/firestore');
 
 const TESSERA_BASE = SITE_URL + '/tessera.html?t=';
+// Bucket custom del progetto (vedi firebase-config.js): senza nome esplicito
+// admin.storage().bucket() risolve <project>.appspot.com, che NON è dove il
+// client carica le prove — mismatch silenzioso (404) sia in emulatore che in prod.
+const STORAGE_BUCKET = 'fonderia-treviso-storage-733715891717';
 const PHONE_RE = /^[+0-9][0-9 .()-]{5,24}$/;
 
 function randomToken() {
@@ -1218,5 +1222,102 @@ exports.redeemQr = onCall(
     logger.info('redeemQr OK', { claimId: claimDoc.id, via: authorizedVia });
     const payload = await claimPublicPayload(claimDoc);
     return { ok: true, prizeLabel: payload.prizeLabel, memberName: payload.memberName };
+  }
+);
+
+// Storage rules: claims-inbox non è leggibile dal client (read:false) — le
+// prove le vede lo staff SOLO via questo canale admin. Ritorna data URL base64
+// (upload cap 5MB → risposta ~6.7MB, ok per consultazione puntuale).
+exports.getClaimScreenshot = onCall(
+  { region: 'europe-west1', maxInstances: 2 },
+  async (req) => {
+    await assertAdmin(req);
+    const claimId = String((req.data && req.data.claimId) || '').trim();
+    if (!claimId || claimId.includes('/')) {
+      throw new HttpsError('invalid-argument', 'Claim non valido.');
+    }
+    const snap = await admin.firestore().collection('claims').doc(claimId).get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Claim non trovato.');
+    const path = String(snap.data().screenshotPath || '');
+    if (!path.startsWith('claims-inbox/') || path.includes('..')) {
+      throw new HttpsError('not-found', 'Nessuna prova allegata a questa richiesta.');
+    }
+    const file = admin.storage().bucket(STORAGE_BUCKET).file(path);
+    const [meta] = await file.getMetadata().catch(() => [null]);
+    if (!meta) throw new HttpsError('not-found', 'Immagine non più disponibile.');
+    const mime = String(meta.contentType || 'image/jpeg');
+    if (!mime.startsWith('image/')) {
+      throw new HttpsError('failed-precondition', 'Il file allegato non è un\'immagine.');
+    }
+    const [buf] = await file.download();
+    logger.info('getClaimScreenshot', { claimId, by: req.auth.token.email });
+    return { dataUrl: 'data:' + mime + ';base64,' + buf.toString('base64') };
+  }
+);
+
+/* --- Moderazione staff: reviewClaim (pending_review) + approveReferral --- */
+
+// Approva/rifiuta un claim in pending_review. Approvazione: il code esiste già
+// (generato alla sottomissione) → solo status='issued', poi actionsCount del
+// membro +1 sulla metrica della promo e rivalutazione badge. FieldValue dal
+// subpath (ruling): admin.firestore.FieldValue in emulatore è undefined.
+exports.reviewClaim = onCall(
+  { region: 'europe-west1', maxInstances: 2 },
+  async (req) => {
+    await assertAdmin(req);
+    const claimId = String((req.data && req.data.claimId) || '').trim();
+    const approve = Boolean(req.data && req.data.approve);
+    if (!claimId || claimId.includes('/')) {
+      throw new HttpsError('invalid-argument', 'Claim non valido.');
+    }
+    const db = admin.firestore();
+    const ref = db.collection('claims').doc(claimId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Claim non trovato.');
+    if (snap.data().status !== 'pending_review') {
+      throw new HttpsError('failed-precondition', 'Claim già gestito.');
+    }
+    await ref.update({ status: approve ? 'issued' : 'rejected' });
+    if (approve) {
+      const claim = snap.data();
+      const mRef = db.collection('members').doc(claim.memberId);
+      const promoSnap = await db.collection('promos').doc(claim.promoId).get();
+      const promo = promoSnap.exists ? promoSnap.data() : {};
+      await mRef.update({
+        ['actionsCount.' + (promo.actionType || 'custom')]: FieldValue.increment(1),
+      });
+      await evaluateBadges(mRef, (await mRef.get()).data());
+    }
+    logger.info('reviewClaim', { claimId, approve, by: req.auth.token.email });
+    return { ok: true };
+  }
+);
+
+// Approva un referral marcato sospetto (auto-invito / refCode inesistente):
+// referralCount +1 sul referente e smarcatura. Scelta deliberata (ruling):
+// NON viene emesso il claim da promo referral a soglia su approvazione
+// manuale — solo conteggio + badge (ramo raro, popolazione vuota oggi).
+exports.approveReferral = onCall(
+  { region: 'europe-west1', maxInstances: 2 },
+  async (req) => {
+    await assertAdmin(req);
+    const memberId = String((req.data && req.data.memberId) || '').trim();
+    if (!memberId || memberId.includes('/')) {
+      throw new HttpsError('invalid-argument', 'memberId non valido.');
+    }
+    const db = admin.firestore();
+    const ref = db.collection('members').doc(memberId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Membro non trovato.');
+    if (snap.data().suspiciousReferral !== true) {
+      throw new HttpsError('failed-precondition', 'Referral già gestito o non sospetto.');
+    }
+    await ref.update({
+      referralCount: FieldValue.increment(1),
+      suspiciousReferral: FieldValue.delete(),
+    });
+    await evaluateBadges(ref, (await ref.get()).data());
+    logger.info('approveReferral', { memberId, by: req.auth.token.email });
+    return { ok: true };
   }
 );
