@@ -895,3 +895,12 @@
     font-size: 0.8rem;
     color: #8a8278;
 }
+
+/* ----------------------------------------------------------
+ * L'attributo [hidden] deve SEMPRE vincere.
+ * I layout admin usano display:flex (.adm-boot, .adm-login,
+ * #admShell, .adm-toast...) e "display" del CSS batte la regola
+ * UA [hidden]{display:none} → lo schermo di boot restava visibile
+ * sopra il login (bug "Caricamento infinito", 2026-09-11).
+ * ---------------------------------------------------------- */
+[hidden] { display: none !important; }
