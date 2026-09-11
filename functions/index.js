@@ -911,7 +911,9 @@ exports.submitClaim = onCall(
     } else {
       // Scarica l'immagine da Storage e valida con Gemini vision
       try {
-        const bucket = admin.storage().bucket();
+        // Bucket esplicito (STORAGE_BUCKET): il default `<project>.appspot.com`
+        // non esiste in questo progetto — ogni download darebbe 404 (R1 Task 11).
+        const bucket = admin.storage().bucket(STORAGE_BUCKET);
         const file = bucket.file(imagePath);
         const [meta] = await file.getMetadata();
         const mime = String(meta.contentType || 'image/jpeg');
@@ -1238,8 +1240,11 @@ exports.getClaimScreenshot = onCall(
     }
     const snap = await admin.firestore().collection('claims').doc(claimId).get();
     if (!snap.exists) throw new HttpsError('not-found', 'Claim non trovato.');
-    const path = String(snap.data().screenshotPath || '');
-    if (!path.startsWith('claims-inbox/') || path.includes('..')) {
+    const claim = snap.data();
+    const path = String(claim.screenshotPath || '');
+    // Il path DEVE stare nel folder del membro del claim: un claim non può
+    // puntare alla prova di un altro membro (M1, R1 Task 11).
+    if (!path.startsWith('claims-inbox/' + String(claim.memberId || '') + '/') || path.includes('..')) {
       throw new HttpsError('not-found', 'Nessuna prova allegata a questa richiesta.');
     }
     const file = admin.storage().bucket(STORAGE_BUCKET).file(path);
@@ -1272,21 +1277,34 @@ exports.reviewClaim = onCall(
     }
     const db = admin.firestore();
     const ref = db.collection('claims').doc(claimId);
-    const snap = await ref.get();
-    if (!snap.exists) throw new HttpsError('not-found', 'Claim non trovato.');
-    if (snap.data().status !== 'pending_review') {
-      throw new HttpsError('failed-precondition', 'Claim già gestito.');
-    }
-    await ref.update({ status: approve ? 'issued' : 'rejected' });
-    if (approve) {
-      const claim = snap.data();
+    // Guard + scritture DENTRO una transazione (standard redeemQr): due
+    // reviewClaim concorrenti sullo stesso claim non possono entrambe vedere
+    // pending_review e incrementare due volte actionsCount. Letture prima
+    // delle scritture (vincolo tx Firestore); HttpsError nel callback esce
+    // pulito (not-found / failed-precondition), mai internal.
+    const memberRef = await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(ref);
+      if (!fresh.exists) throw new HttpsError('not-found', 'Claim non trovato.');
+      const claim = fresh.data();
+      if (claim.status !== 'pending_review') {
+        throw new HttpsError('failed-precondition', 'Claim già gestito.');
+      }
+      if (!approve) {
+        tx.update(ref, { status: 'rejected' });
+        return null;
+      }
       const mRef = db.collection('members').doc(claim.memberId);
-      const promoSnap = await db.collection('promos').doc(claim.promoId).get();
+      const promoSnap = await tx.get(db.collection('promos').doc(claim.promoId));
       const promo = promoSnap.exists ? promoSnap.data() : {};
-      await mRef.update({
+      tx.update(ref, { status: 'issued' });
+      tx.update(mRef, {
         ['actionsCount.' + (promo.actionType || 'custom')]: FieldValue.increment(1),
       });
-      await evaluateBadges(mRef, (await mRef.get()).data());
+      return mRef;
+    });
+    // evaluateBadges FUORI dalla tx, su dati ri-letti: è idempotente.
+    if (memberRef) {
+      await evaluateBadges(memberRef, (await memberRef.get()).data());
     }
     logger.info('reviewClaim', { claimId, approve, by: req.auth.token.email });
     return { ok: true };
@@ -1307,14 +1325,18 @@ exports.approveReferral = onCall(
     }
     const db = admin.firestore();
     const ref = db.collection('members').doc(memberId);
-    const snap = await ref.get();
-    if (!snap.exists) throw new HttpsError('not-found', 'Membro non trovato.');
-    if (snap.data().suspiciousReferral !== true) {
-      throw new HttpsError('failed-precondition', 'Referral già gestito o non sospetto.');
-    }
-    await ref.update({
-      referralCount: FieldValue.increment(1),
-      suspiciousReferral: FieldValue.delete(),
+    // Guard + scritture nella stessa tx: doppia approvazione concorrente
+    // conta UNA sola volta (la seconda ri-legge il flag già cancellato).
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new HttpsError('not-found', 'Membro non trovato.');
+      if (snap.data().suspiciousReferral !== true) {
+        throw new HttpsError('failed-precondition', 'Referral già gestito o non sospetto.');
+      }
+      tx.update(ref, {
+        referralCount: FieldValue.increment(1),
+        suspiciousReferral: FieldValue.delete(),
+      });
     });
     await evaluateBadges(ref, (await ref.get()).data());
     logger.info('approveReferral', { memberId, by: req.auth.token.email });

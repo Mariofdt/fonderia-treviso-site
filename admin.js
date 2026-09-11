@@ -1385,10 +1385,10 @@ async function startPromosTab() {
                 </div>
                 <div class="adm-card-actions">
                     <span class="adm-badge ${p.active !== false ? 'adm-badge--on' : 'adm-badge--off'}">${p.active !== false ? 'Attiva' : 'Nascosta'}</span>
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-promo-action="copy" data-id="${id}" type="button">Copia link</button>
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-promo-action="toggle" data-id="${id}" type="button">${p.active !== false ? 'Disattiva' : 'Attiva'}</button>
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-promo-action="edit" data-id="${id}" type="button">Modifica</button>
-                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-promo-action="delete" data-id="${id}" type="button">Elimina</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-promo-action="copy" data-id="${esc(id)}" type="button">Copia link</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-promo-action="toggle" data-id="${esc(id)}" type="button">${p.active !== false ? 'Disattiva' : 'Attiva'}</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-promo-action="edit" data-id="${esc(id)}" type="button">Modifica</button>
+                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-promo-action="delete" data-id="${esc(id)}" type="button">Elimina</button>
                 </div>
             </div>`).join('');
     }
@@ -1444,11 +1444,11 @@ async function startPromosTab() {
                   (member.suspicious ? ' <span class="adm-badge adm-badge--claim-suspicious">ref. sospetto</span>' : '') +
                   (member.phone ? '<br><span class="adm-cell-muted">' + esc(member.phone) + '</span>' : '');
             const actions = c.status === 'pending_review'
-                ? `<button class="adm-btn adm-btn-sm" data-claim-review="${id}" data-approve="1" type="button">Approva</button>
-                   <button class="adm-btn adm-btn-danger adm-btn-sm" data-claim-review="${id}" data-approve="0" type="button">Rifiuta</button>`
+                ? `<button class="adm-btn adm-btn-sm" data-claim-review="${esc(id)}" data-approve="1" type="button">Approva</button>
+                   <button class="adm-btn adm-btn-danger adm-btn-sm" data-claim-review="${esc(id)}" data-approve="0" type="button">Rifiuta</button>`
                 : '';
             const proof = c.screenshotPath
-                ? `<button class="adm-btn adm-btn-ghost adm-btn-sm" data-claim-shot="${id}" type="button">Vedi prova</button>`
+                ? `<button class="adm-btn adm-btn-ghost adm-btn-sm" data-claim-shot="${esc(id)}" type="button">Vedi prova</button>`
                 : '<span class="adm-cell-muted">—</span>';
             return `<tr>
                 <td class="adm-cell-muted">${fmtDateTime(c.createdAt)}</td>
@@ -1484,7 +1484,7 @@ async function startPromosTab() {
                     <div class="adm-card-sub">${esc(m.phone || '—')} · referral attuali: ${esc(m.referralCount ?? 0)}</div>
                 </div>
                 <div class="adm-card-actions">
-                    <button class="adm-btn adm-btn-sm" data-susp-approve="${id}" type="button">Approva referral</button>
+                    <button class="adm-btn adm-btn-sm" data-susp-approve="${esc(id)}" type="button">Approva referral</button>
                 </div>
             </div>`).join('');
     }
@@ -1683,7 +1683,9 @@ async function startPromosTab() {
             errBox.hidden = false;
             return;
         }
-        if (!ACTION_TYPES[actionType]) {
+        // Object.hasOwn: la lookup su chiavi da Firestore non deve accettare
+        // chiavi di prototype chain (es. 'toString') come valide (M2, R1 Task 11).
+        if (!Object.hasOwn(ACTION_TYPES, actionType)) {
             errBox.textContent = 'Tipo di azione non valido.';
             errBox.hidden = false;
             return;
@@ -1861,9 +1863,9 @@ async function startBadgesTab() {
                 </div>
                 <div class="adm-card-actions">
                     <span class="adm-badge ${b.active !== false ? 'adm-badge--on' : 'adm-badge--off'}">${b.active !== false ? 'Attivo' : 'Nascosto'}</span>
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-badge-action="toggle" data-id="${id}" type="button">${b.active !== false ? 'Disattiva' : 'Attiva'}</button>
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-badge-action="edit" data-id="${id}" type="button">Modifica</button>
-                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-badge-action="delete" data-id="${id}" type="button">Elimina</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-badge-action="toggle" data-id="${esc(id)}" type="button">${b.active !== false ? 'Disattiva' : 'Attiva'}</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-badge-action="edit" data-id="${esc(id)}" type="button">Modifica</button>
+                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-badge-action="delete" data-id="${esc(id)}" type="button">Elimina</button>
                 </div>
             </div>`).join('');
     }
@@ -1914,7 +1916,7 @@ async function startBadgesTab() {
         const active = panel.querySelector('#badgeActive').checked;
 
         if (!name) { errBox.textContent = 'Il nome è obbligatorio.'; errBox.hidden = false; return; }
-        if (!BADGE_METRICS[metric]) { errBox.textContent = 'Metrica non valida.'; errBox.hidden = false; return; }
+        if (!Object.hasOwn(BADGE_METRICS, metric)) { errBox.textContent = 'Metrica non valida.'; errBox.hidden = false; return; }
         if (!Number.isInteger(threshold) || threshold < 1) {
             errBox.textContent = 'La soglia deve essere un numero intero ≥ 1.';
             errBox.hidden = false;
