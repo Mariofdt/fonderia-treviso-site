@@ -1,0 +1,344 @@
+/* ========================================
+   FONDERIA TREVISO - Pagina promo pubblica
+   Mobile-first (390px), card dark sui token
+   del sito (styles.css). Caricato solo da promo.html.
+   ======================================== */
+
+.promo-body {
+    min-height: 100vh;
+    margin: 0;
+    font-family: var(--font-heading); /* Space Grotesk anche per il corpo: niente Inter qui */
+    background:
+        radial-gradient(60% 40% at 50% -10%, var(--color-fire-glow), transparent 70%),
+        radial-gradient(40% 30% at 85% 110%, rgba(255, 107, 26, 0.15), transparent 70%),
+        var(--color-bg);
+    color: var(--color-text);
+    display: flex;
+    justify-content: center;
+}
+
+.promo-main {
+    width: 100%;
+    max-width: 460px;
+    padding: 32px 20px 48px;
+    box-sizing: border-box;
+}
+
+.promo-header {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 24px;
+}
+
+.promo-logo {
+    height: 56px;
+    width: auto;
+    filter: drop-shadow(0 0 18px var(--color-fire-glow));
+}
+
+.promo-app {
+    background: var(--color-surface);
+    border: 1px solid rgba(255, 107, 26, 0.18);
+    border-radius: 16px;
+    padding: 28px 22px;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55), 0 0 32px var(--color-fire-glow);
+}
+
+.promo-loading {
+    text-align: center;
+    color: var(--color-text-muted);
+    margin: 24px 0;
+    animation: promoPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes promoPulse {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
+}
+
+/* Badge stile hero del sito */
+.promo-badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+    color: var(--color-accent);
+    border: 1px solid var(--color-accent);
+    border-radius: 999px;
+    padding: 6px 14px;
+    margin: 0 0 14px;
+    box-shadow: 0 0 16px var(--color-fire-glow);
+}
+
+.promo-title {
+    font-family: 'Fraunces', var(--font-heading);
+    font-style: italic;
+    font-weight: 600;
+    font-size: 30px;
+    line-height: 1.15;
+    margin: 0 0 12px;
+    color: var(--color-white);
+}
+
+.promo-title-win {
+    color: var(--color-accent);
+    text-shadow: 0 0 24px var(--color-fire-glow);
+}
+
+.promo-desc {
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--color-text-muted);
+    margin: 0 0 16px;
+}
+
+.promo-prize {
+    font-size: 15px;
+    color: var(--color-text);
+    margin: 0 0 16px;
+}
+
+.promo-prize strong {
+    color: var(--color-accent);
+}
+
+.promo-ref {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    margin: 14px 0 0;
+}
+
+/* ---------- Form ---------- */
+
+.promo-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.promo-label {
+    font-size: 13px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--color-text-muted);
+    margin-top: 12px;
+}
+
+.promo-input {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: var(--font-heading);
+    font-size: 16px; /* evita lo zoom automatico iOS */
+    color: var(--color-text);
+    background: var(--color-bg-alt);
+    border: 1px solid rgba(240, 235, 227, 0.16);
+    border-radius: 8px;
+    padding: 13px 14px;
+    transition: border-color 0.3s var(--transition-smooth), box-shadow 0.3s var(--transition-smooth);
+}
+
+.promo-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px rgba(255, 107, 26, 0.25), 0 0 20px var(--color-fire-glow);
+}
+
+.promo-consent {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--color-text-muted);
+    margin: 16px 0 6px;
+    cursor: pointer;
+}
+
+.promo-consent input {
+    margin-top: 2px;
+    accent-color: var(--color-primary);
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.promo-error {
+    font-size: 13px;
+    color: #ff5d5d;
+    margin: 10px 0 0;
+}
+
+.promo-btn {
+    width: 100%;
+    margin-top: 18px;
+    text-align: center;
+    display: block;
+    box-sizing: border-box;
+}
+
+.promo-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.promo-link {
+    display: inline-block;
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.promo-link:hover {
+    color: var(--color-accent);
+}
+
+/* ---------- Upload ---------- */
+
+.promo-upload {
+    display: flex;
+    flex-direction: column;
+}
+
+.promo-drop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    border: 1.5px dashed rgba(255, 107, 26, 0.45);
+    border-radius: 12px;
+    padding: 26px 16px;
+    text-align: center;
+    cursor: pointer;
+    background: var(--color-bg-alt);
+    transition: border-color 0.3s var(--transition-smooth), box-shadow 0.3s var(--transition-smooth);
+}
+
+.promo-drop:hover {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 24px var(--color-fire-glow);
+}
+
+.promo-drop-cta {
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--color-text);
+}
+
+.promo-drop-hint {
+    font-size: 12px;
+    color: var(--color-text-muted);
+}
+
+.promo-file {
+    font-size: 13px;
+    color: var(--color-accent);
+    margin: 10px 0 0;
+    word-break: break-all;
+}
+
+.promo-note {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--color-text-muted);
+    margin: 18px 0 0;
+}
+
+/* ---------- Home: lista promo ---------- */
+
+.promo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.promo-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: var(--color-bg-alt);
+    border: 1px solid rgba(240, 235, 227, 0.12);
+    border-radius: 12px;
+    padding: 16px;
+    text-decoration: none;
+    transition: border-color 0.3s var(--transition-smooth), transform 0.3s var(--transition-smooth), box-shadow 0.3s var(--transition-smooth);
+}
+
+.promo-card:hover {
+    border-color: var(--color-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 0 24px var(--color-fire-glow);
+}
+
+.promo-card-tag {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--color-accent);
+}
+
+.promo-card-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.promo-card-prize {
+    font-size: 13px;
+    color: var(--color-text-muted);
+}
+
+/* ---------- Referral / share ---------- */
+
+.promo-progress {
+    font-size: 14px;
+    color: var(--color-text);
+    margin: 0 0 16px;
+}
+
+.promo-progress strong {
+    color: var(--color-accent);
+}
+
+.promo-share {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.promo-share-url {
+    font-size: 14px;
+    color: var(--color-text-muted);
+    text-overflow: ellipsis;
+}
+
+.promo-toast {
+    text-align: center;
+    font-size: 13px;
+    color: #57d98a;
+    margin: 12px 0 0;
+}
+
+/* ---------- Desktop ---------- */
+
+@media (min-width: 720px) {
+    .promo-main {
+        max-width: 520px;
+        padding-top: 48px;
+    }
+
+    .promo-app {
+        padding: 36px 32px;
+    }
+
+    .promo-title {
+        font-size: 36px;
+    }
+}
