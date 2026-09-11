@@ -547,3 +547,138 @@ exports.onNewsletterCreated = onDocumentCreated(
     }
   }
 );
+
+/* ------------------------------------------------------------------ *
+ * GAMIFICATION — tessere, claim, QR premio, referral, badge.
+ * Spec: docs/superpowers/specs/2026-09-11-gamification-design.md
+ * ------------------------------------------------------------------ */
+
+const crypto = require('crypto');
+// FieldValue via subpath: in emulatore il runtime di firebase-tools stubba il
+// modulo 'firebase-admin' e admin.firestore.FieldValue risulta undefined
+// (admin.firestore() funziona comunque). Il subpath non viene intercettato.
+const { FieldValue } = require('firebase-admin/firestore');
+
+const TESSERA_BASE = SITE_URL + '/tessera.html?t=';
+const PHONE_RE = /^[+0-9][0-9 .()-]{5,24}$/;
+
+function randomToken() {
+  return crypto.randomBytes(16).toString('hex'); // 128 bit
+}
+
+async function assertMember(token) {
+  const t = String(token || '').trim();
+  if (!/^[a-f0-9]{32}$/.test(t)) {
+    throw new HttpsError('unauthenticated', 'Tessera non valida.');
+  }
+  const snap = await admin.firestore().collection('members')
+    .where('token', '==', t).limit(1).get();
+  if (snap.empty) {
+    throw new HttpsError('unauthenticated', 'Tessera non trovata.');
+  }
+  const docSnap = snap.docs[0];
+  return { id: docSnap.id, data: docSnap.data(), ref: docSnap.ref };
+}
+
+async function makeRefCode(name) {
+  const base = name.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 8) || 'FRIEND';
+  const members = admin.firestore().collection('members');
+  for (let i = 0; i < 20; i++) {
+    const code = base + crypto.randomInt(0, 10) + (i > 9 ? crypto.randomInt(0, 10) : '');
+    const dup = await members.where('refCode', '==', code).limit(1).get();
+    if (dup.empty) return code;
+  }
+  throw new HttpsError('internal', 'Impossibile generare il codice invito. Riprova.');
+}
+
+// Valutazione badge: idempotente, aggiunge solo soglie raggiunte non presenti.
+async function evaluateBadges(memberRef, memberData) {
+  const snap = await admin.firestore().collection('badges')
+    .where('active', '==', true).get();
+  if (snap.empty) return [];
+  const owned = new Set(memberData.badges || []);
+  const totalClaims = Object.values(memberData.actionsCount || {})
+    .reduce((a, b) => a + b, 0);
+  const earned = [];
+  for (const d of snap.docs) {
+    const b = d.data();
+    if (owned.has(d.id) || !b.rule || !b.rule.metric) continue;
+    let value = 0;
+    if (b.rule.metric === 'totalClaims') value = totalClaims;
+    else if (b.rule.metric === 'referralCount') value = memberData.referralCount || 0;
+    else if (b.rule.metric.startsWith('actionsCount.')) {
+      value = (memberData.actionsCount || {})[b.rule.metric.slice(13)] || 0;
+    }
+    if (value >= (b.rule.threshold || 0)) earned.push(d.id);
+  }
+  if (earned.length) {
+    await memberRef.update({
+      badges: FieldValue.arrayUnion(...earned),
+    });
+  }
+  return earned;
+}
+
+exports.registerMember = onCall(
+  { region: 'europe-west1', maxInstances: 2 },
+  async (req) => {
+    const name = String((req.data && req.data.name) || '').trim();
+    const phone = String((req.data && req.data.phone) || '').trim();
+    const refCodeIn = String((req.data && req.data.refCode) || '').trim().toUpperCase();
+
+    if (name.length < 2 || name.length > 50) {
+      throw new HttpsError('invalid-argument', 'Inserisci un nome valido (2-50 caratteri).');
+    }
+    if (!PHONE_RE.test(phone)) {
+      throw new HttpsError('invalid-argument', 'Numero di telefono non valido.');
+    }
+    const phoneNorm = phone.replace(/[ .()-]/g, '');
+
+    const db = admin.firestore();
+
+    // Telefono duplicato → la tessera esiste già (anti multi-account)
+    const dup = await db.collection('members').where('phoneNorm', '==', phoneNorm).limit(1).get();
+    if (!dup.empty) {
+      throw new HttpsError('already-exists',
+        'Questo numero è già registrato: riapri il link della tua tessera.');
+    }
+
+    let referredBy = null;
+    let refSuspicious = false;
+    if (refCodeIn) {
+      const ref = await db.collection('members').where('refCode', '==', refCodeIn).limit(1).get();
+      if (ref.empty) {
+        refSuspicious = true; // refCode inesistente: registra comunque, marca il referral
+      } else if (ref.docs[0].data().phoneNorm === phoneNorm) {
+        refSuspicious = true; // auto-invito
+      } else {
+        referredBy = ref.docs[0].id;
+      }
+    }
+
+    const token = randomToken();
+    const refCode = await makeRefCode(name);
+    const ref = await db.collection('members').add({
+      name,
+      phone,
+      phoneNorm,
+      token,
+      refCode,
+      referredBy,
+      referralCount: 0,
+      actionsCount: {},
+      uploadAttempts: {},
+      badges: [],
+      refSuspicious, // refCode inesistente o auto-invito → true; il trigger (Task 6) lo consulta
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
+    logger.info('registerMember OK', { memberId: ref.id, referredBy: referredBy || 'nessuno' });
+    return {
+      memberId: ref.id,
+      token,
+      refCode,
+      tesseraUrl: TESSERA_BASE + token,
+    };
+  }
+);
