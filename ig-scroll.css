@@ -23,6 +23,8 @@
     display: flex;
     gap: 20px;
     width: max-content;
+    /* centrato quando entra nel viewport; se overflowa lo scroll parte da sx */
+    margin-inline: auto;
     padding: 4px;
 }
 
