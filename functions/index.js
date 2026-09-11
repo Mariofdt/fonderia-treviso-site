@@ -7,12 +7,11 @@
  * Azione: email al locale + conferma al cliente (se ha lasciato l'email),
  *         poi marca il doc con emailed/emailedAt via Admin SDK.
  *
- * Config (tutta fuori dal codice, NIENTE in git):
- *   - BREVO_SMTP_KEY    → Secret Manager (defineSecret) — password SMTP Brevo
- *   - BREVO_SMTP_USER   → functions/.env — login SMTP Brevo
- *   - VENUE_EMAIL       → functions/.env — email del locale
- *   - FROM_EMAIL        → functions/.env — mittente (fallback: EMAIL_FROM, poi BREVO_SMTP_USER)
- * functions/.env e' caricato automaticamente dal runtime v2 (e dall'emulatore).
+ * Config (tutta in Secret Manager, NIENTE in git e niente .env):
+ *   - BREVO_SMTP_KEY    → secret — password SMTP Brevo (xsmtpsib-...)
+ *   - BREVO_SMTP_USER   → secret — login SMTP Brevo (es. xxxx001@smtp-brevo.com)
+ *   - VENUE_EMAIL       → secret — email del locale che riceve le prenotazioni
+ *   - FROM_EMAIL        → secret — mittente visibile (deve essere sender verificato su Brevo)
  */
 
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
@@ -24,6 +23,9 @@ const nodemailer = require('nodemailer');
 admin.initializeApp();
 
 const brevoSmtpKey = defineSecret('BREVO_SMTP_KEY');
+const brevoSmtpUser = defineSecret('BREVO_SMTP_USER');
+const venueEmailParam = defineSecret('VENUE_EMAIL');
+const fromEmailParam = defineSecret('FROM_EMAIL');
 
 const SERVICE_LABELS = {
   cena: 'Cena',
@@ -70,7 +72,7 @@ exports.onBookingCreated = onDocumentCreated(
     region: 'europe-west1',
     maxInstances: 2,
     retry: true,
-    secrets: [brevoSmtpKey],
+    secrets: [brevoSmtpKey, brevoSmtpUser, venueEmailParam, fromEmailParam],
   },
   async (event) => {
     const snap = event.data;
@@ -91,11 +93,11 @@ exports.onBookingCreated = onDocumentCreated(
       source: booking.source,
     });
 
-    const smtpUser = process.env.BREVO_SMTP_USER;
+    const smtpUser = brevoSmtpUser.value() || process.env.BREVO_SMTP_USER;
     const smtpPass = brevoSmtpKey.value();
-    const venueEmail = process.env.VENUE_EMAIL;
+    const venueEmail = venueEmailParam.value() || process.env.VENUE_EMAIL;
     const fromEmail =
-      process.env.FROM_EMAIL || process.env.EMAIL_FROM || smtpUser;
+      fromEmailParam.value() || process.env.FROM_EMAIL || smtpUser;
 
     // Config mancante → log e skip pulito: la prenotazione resta in Firestore
     // e in admin; niente crash, niente retry loop infinito su un problema di setup.
