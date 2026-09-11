@@ -1,0 +1,360 @@
+/* ========================================
+   FONDERIA TREVISO - Tessera socio
+   Mobile-first (390px), stessi token/pattern
+   di promo.css. Caricato solo da tessera.html.
+   ======================================== */
+
+.tessera-body {
+    min-height: 100vh;
+    margin: 0;
+    font-family: var(--font-heading);
+    background:
+        radial-gradient(60% 40% at 50% -10%, var(--color-fire-glow), transparent 70%),
+        radial-gradient(40% 30% at 85% 110%, rgba(255, 107, 26, 0.15), transparent 70%),
+        var(--color-bg);
+    color: var(--color-text);
+    display: flex;
+    justify-content: center;
+}
+
+.tessera-main {
+    width: 100%;
+    max-width: 460px;
+    padding: 32px 20px 48px;
+    box-sizing: border-box;
+}
+
+.tessera-header {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 24px;
+}
+
+.tessera-logo {
+    height: 56px;
+    width: auto;
+    filter: drop-shadow(0 0 18px var(--color-fire-glow));
+}
+
+.tessera-app {
+    background: var(--color-surface);
+    border: 1px solid rgba(255, 107, 26, 0.18);
+    border-radius: 16px;
+    padding: 28px 22px;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55), 0 0 32px var(--color-fire-glow);
+}
+
+.tessera-loading {
+    text-align: center;
+    color: var(--color-text-muted);
+    margin: 24px 0;
+    animation: tesseraPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes tesseraPulse {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
+}
+
+/* Badge stile hero del sito */
+.tessera-badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+    color: var(--color-accent);
+    border: 1px solid var(--color-accent);
+    border-radius: 999px;
+    padding: 6px 14px;
+    margin: 0 0 14px;
+    box-shadow: 0 0 16px var(--color-fire-glow);
+}
+
+.tessera-title {
+    font-family: 'Fraunces', var(--font-heading);
+    font-style: italic;
+    font-weight: 600;
+    font-size: 30px;
+    line-height: 1.15;
+    margin: 0 0 8px;
+    color: var(--color-white);
+}
+
+.tessera-h2 {
+    font-family: 'Fraunces', var(--font-heading);
+    font-style: italic;
+    font-weight: 600;
+    font-size: 20px;
+    margin: 28px 0 12px;
+    color: var(--color-white);
+}
+
+.tessera-desc {
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--color-text-muted);
+    margin: 0 0 16px;
+}
+
+.tessera-accent {
+    color: var(--color-accent);
+}
+
+.tessera-refcode {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    margin: 0 0 4px;
+}
+
+.tessera-refcode strong {
+    color: var(--color-text);
+    letter-spacing: 1px;
+}
+
+.tessera-notice {
+    font-size: 14px;
+    line-height: 1.45;
+    color: #ffc357;
+    border: 1px solid rgba(255, 195, 87, 0.4);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 0 0 14px;
+    background: rgba(255, 195, 87, 0.08);
+}
+
+.tessera-empty {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.tessera-btn {
+    width: 100%;
+    margin-top: 18px;
+    text-align: center;
+    display: block;
+    box-sizing: border-box;
+}
+
+.tessera-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.tessera-link {
+    display: inline-block;
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.tessera-link:hover {
+    color: var(--color-accent);
+}
+
+.tessera-toast {
+    text-align: center;
+    font-size: 13px;
+    color: #57d98a;
+    margin: 12px 0 0;
+}
+
+/* ---------- Premi / claims ---------- */
+
+.tessera-claims {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.tessera-claim {
+    background: var(--color-bg-alt);
+    border: 1px solid rgba(240, 235, 227, 0.12);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+}
+
+.tessera-claim-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    text-align: left;
+}
+
+.tessera-claim-prize {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.tessera-claim-promo {
+    font-size: 12.5px;
+    color: var(--color-text-muted);
+    margin: 6px 0 0;
+    text-align: left;
+}
+
+.tessera-chip {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    border-radius: 999px;
+    padding: 5px 12px;
+    white-space: nowrap;
+}
+
+.tessera-chip-pending {
+    color: #ffc357;
+    border: 1px solid rgba(255, 195, 87, 0.5);
+    background: rgba(255, 195, 87, 0.1);
+}
+
+.tessera-chip-redeemed {
+    color: var(--color-text-muted);
+    border: 1px solid rgba(240, 235, 227, 0.2);
+    background: rgba(240, 235, 227, 0.06);
+}
+
+.tessera-chip-rejected {
+    color: #ff5d5d;
+    border: 1px solid rgba(255, 93, 93, 0.4);
+    background: rgba(255, 93, 93, 0.08);
+}
+
+/* Cornice QR: SEMPRE bianca con padding, qualunque sia il tema —
+   i lettori QR non scansionano su fondo scuro. */
+.tessera-qr-frame {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 12px;
+    margin: 14px auto 0;
+    width: fit-content;
+    max-width: 100%;
+    box-sizing: border-box;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+.tessera-qr {
+    width: 220px;
+    height: 220px;
+    max-width: calc(100vw - 140px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.tessera-qr img,
+.tessera-qr canvas,
+.tessera-qr table {
+    max-width: 100% !important;
+    height: auto !important;
+}
+
+.tessera-qr-hint {
+    font-size: 12.5px;
+    color: var(--color-text-muted);
+    margin: 10px 0 0;
+}
+
+/* ---------- Badge ---------- */
+
+.tessera-badges {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.tessera-badge-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--color-bg-alt);
+    border: 1px solid rgba(240, 235, 227, 0.12);
+    border-radius: 12px;
+    padding: 12px 14px;
+}
+
+.tessera-badge-icon {
+    font-size: 26px;
+    flex-shrink: 0;
+}
+
+.tessera-badge-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.tessera-badge-desc {
+    font-size: 12.5px;
+    color: var(--color-text-muted);
+    margin-left: auto;
+    text-align: right;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+/* ---------- Promozioni attive ---------- */
+
+.tessera-promo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.tessera-promo-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: var(--color-bg-alt);
+    border: 1px solid rgba(240, 235, 227, 0.12);
+    border-radius: 12px;
+    padding: 16px;
+    text-decoration: none;
+    transition: border-color 0.3s var(--transition-smooth), transform 0.3s var(--transition-smooth), box-shadow 0.3s var(--transition-smooth);
+}
+
+.tessera-promo-card:hover {
+    border-color: var(--color-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 0 24px var(--color-fire-glow);
+}
+
+.tessera-promo-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.tessera-promo-prize {
+    font-size: 13px;
+    color: var(--color-text-muted);
+}
+
+/* ---------- Desktop ---------- */
+
+@media (min-width: 720px) {
+    .tessera-main {
+        max-width: 520px;
+        padding-top: 48px;
+    }
+
+    .tessera-app {
+        padding: 36px 32px;
+    }
+
+    .tessera-title {
+        font-size: 36px;
+    }
+}
