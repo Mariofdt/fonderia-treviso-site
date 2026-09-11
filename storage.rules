@@ -29,7 +29,11 @@ service firebase.storage {
     // ma inerte: submitClaim accetta solo path col memberId del token chiamante.
     match /claims-inbox/{memberId}/{fileName} {
       allow read: if false; // le prove le vede solo lo staff (function/admin SDK)
-      allow create: if request.resource != null
+      // resource == null: il POST REST semplice di firebase.storage viene
+      // classificato 'create' anche su oggetto esistente (probe prod 11/09/26);
+      // senza questa clausola un anonimo potrebbe sovrascrivere una prova.
+      allow create: if resource == null
+        && request.resource != null
         && request.resource.size <= 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
       allow update, delete: if false;
