@@ -964,3 +964,93 @@ exports.submitClaim = onCall(
     return { status: 'issued', reason: 'Verifica superata! Mostra il QR al banco per il tuo premio.', tesseraUrl: TESSERA_BASE + String(req.data.token) };
   }
 );
+
+// Trigger referral: conteggio sul referente + claim automatico a soglia.
+// Idempotenza anti-retry (retry:true): il doc del nuovo membro viene marcato
+// referralCounted PRIMA di qualsiasi incremento; un riesame dello stesso
+// evento trova il flag ed esce senza doppio conteggio.
+exports.onMemberCreated = onDocumentCreated(
+  { document: 'members/{memberId}', region: 'europe-west1', maxInstances: 2, retry: true },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) {
+      logger.error('onMemberCreated: evento senza data snapshot', { params: event.params });
+      return;
+    }
+    const member = snap.data();
+    // referredBy null (registrazione senza refCode, refCode inesistente o
+    // auto-invito) → niente da conteggiare.
+    if (!member.referredBy) return;
+
+    const db = admin.firestore();
+    const memberRef = db.collection('members').doc(snap.id);
+    const referrerRef = db.collection('members').doc(member.referredBy);
+
+    // Gate anti-doppio-conteggio: marca atomica sul doc del nuovo membro.
+    // Se la marcatura fallisce per conflitto la transazione viene ritentata
+    // da Firestore; se il doc è già marcato (retry del trigger) → skip totale.
+    const alreadyCounted = await db.runTransaction(async (tx) => {
+      const mSnap = await tx.get(memberRef);
+      if (!mSnap.exists) return true;
+      if (mSnap.data().referralCounted === true) return true;
+      tx.update(memberRef, { referralCounted: true });
+      return false;
+    });
+    if (alreadyCounted) {
+      logger.info('onMemberCreated: referral già conteggiato, skip', { memberId: snap.id });
+      return;
+    }
+
+    const referrerSnap = await referrerRef.get();
+    if (!referrerSnap.exists) {
+      logger.error('onMemberCreated: referente mancante', { referredBy: member.referredBy });
+      return;
+    }
+
+    if (member.refSuspicious) {
+      // Referral sospetto (auto-invito): NON conteggiato, marcato sul
+      // referente per approvazione manuale in admin.
+      await referrerRef.update({ suspiciousReferral: true });
+      logger.info('Referral sospetto marcato', { referrer: member.referredBy, nuovo: snap.id });
+      return;
+    }
+
+    await referrerRef.update({ referralCount: FieldValue.increment(1) });
+    const referrer = (await referrerRef.get()).data();
+
+    // Promo referral attive: soglia raggiunta → claim issued automatico
+    const promos = await db.collection('promos')
+      .where('active', '==', true)
+      .where('actionType', '==', 'referral').get();
+    for (const d of promos.docs) {
+      const p = d.data();
+      const now = new Date();
+      if (p.startsAt && p.startsAt.toDate() > now) continue;
+      if (p.endsAt && p.endsAt.toDate() < now) continue;
+      if (!p.refTarget || (referrer.referralCount || 0) < p.refTarget) continue;
+      const claimRef = db.collection('claims').doc(d.id + '_' + member.referredBy);
+      const existing = await claimRef.get();
+      if (existing.exists) continue; // 1 premio per promo per tessera
+      await claimRef.set({
+        memberId: member.referredBy, promoId: d.id,
+        code: randomToken(), status: 'issued',
+        screenshotPath: null, aiModel: null,
+        aiNote: 'Referral: soglia ' + p.refTarget + ' raggiunta',
+        createdAt: FieldValue.serverTimestamp(),
+        redeemedAt: null, redeemedVia: null, redeemedBy: null,
+      });
+      await referrerRef.update({
+        ['actionsCount.referral']: FieldValue.increment(1),
+      });
+      logger.info('Claim referral emesso', { promoId: d.id, memberId: member.referredBy });
+    }
+
+    const refreshed = (await referrerRef.get()).data();
+    await evaluateBadges(referrerRef, refreshed);
+    logger.info('onMemberCreated: referral conteggiato', {
+      nuovo: snap.id,
+      referrer: member.referredBy,
+      referralCount: refreshed.referralCount,
+    });
+  }
+);
