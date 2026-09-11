@@ -4,6 +4,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex">
+    <!--
+      Diagnostica avvio admin: script classico (NON modulo) → gira anche se gli
+      ES module (admin.js / SDK Firebase da gstatic) non si caricano affatto.
+      Raccoglie errori e, se il boot resta visibile oltre 12s, mostra in pagina
+      i dettagli + un pulsante "Ripara" che cancella i dati locali (IndexedDB/
+      localStorage: la sessione Firebase vive lì, Cmd+Shift+R non la tocca).
+    -->
+    <script>
+    window.__admDiag = [];
+    window.__admMark = function (m) { window.__admDiag.push(m); };
+    window.addEventListener('error', function (e) {
+        var msg = e.message || (e.target && (e.target.src || e.target.href)) || 'risorsa non caricata';
+        window.__admMark('ERRORE: ' + msg);
+    }, true);
+    window.addEventListener('unhandledrejection', function (e) {
+        var r = e.reason || {};
+        window.__admMark('ERRORE async: ' + (r.code || r.message || String(r)));
+    });
+    window.__admBootFail = function (title) {
+        var boot = document.getElementById('admBoot');
+        if (!boot || boot.hidden) return;
+        var items = window.__admDiag.length
+            ? window.__admDiag
+            : ['nessun dettaglio: lo script dell’area gestionale non si è caricato (estensione/ad-blocker, rete o VPN che blocca i moduli?)'];
+        boot.innerHTML = '<div class="adm-boot-fail">'
+            + '<p class="adm-boot-text adm-boot-text--err">' + String(title).replace(/</g, '&lt;') + '</p>'
+            + '<ul class="adm-boot-diag">' + items.map(function (d) {
+                return '<li>' + String(d).replace(/</g, '&lt;') + '</li>';
+            }).join('') + '</ul>'
+            + '<button type="button" class="adm-btn" onclick="window.__admRepair()">Ripara e ricarica</button>'
+            + '<p class="adm-boot-hint">Cancella i dati locali del sito (sessione salvata, cache interna) e ricarica la pagina.</p>'
+            + '</div>';
+    };
+    window.__admRepair = function () {
+        try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}
+        var reload = function () { location.reload(); };
+        setTimeout(reload, 3000); // ricarica comunque anche se il wipe si blocca
+        if (window.indexedDB && indexedDB.databases) {
+            indexedDB.databases().then(function (dbs) {
+                return Promise.all((dbs || []).map(function (d) {
+                    return new Promise(function (res) {
+                        var rq = indexedDB.deleteDatabase(d.name);
+                        rq.onsuccess = rq.onerror = rq.onblocked = function () { res(); };
+                    });
+                }));
+            }).then(reload, reload);
+        } else { reload(); }
+    };
+    setTimeout(function () {
+        var boot = document.getElementById('admBoot');
+        if (boot && !boot.hidden) window.__admBootFail('Avvio bloccato: vedi i dettagli qui sotto.');
+    }, 12000);
+    </script>
     <!-- Google Analytics (GA4) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-MWG860XDK9"></script>
     <script>
@@ -13,13 +66,14 @@
         gtag('config', 'G-MWG860XDK9');
     </script>
     <title>Fonderia — Area Gestionale</title>
+    <link rel="icon" type="image/svg+xml" href="images/logo.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="admin.css?v=2">
+    <link rel="stylesheet" href="admin.css?v=3">
     <script src="firebase-config.js?v=2"></script>
-    <script type="module" src="admin.js?v=2"></script>
+    <script type="module" src="admin.js?v=3"></script>
 </head>
 <body class="admin-body">
 

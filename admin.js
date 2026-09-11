@@ -16,6 +16,11 @@ import { ref as storageRef, uploadBytes, getDownloadURL }
 import { httpsCallable }
     from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-functions.js';
 
+// Diagnostica avvio: __admMark è definito in admin.html (script classico,
+// presente anche se questo modulo non dovesse essere valutato affatto).
+const admMark = (m) => { if (window.__admMark) window.__admMark(m); };
+admMark('admin.js caricato');
+
 const EMAIL_LS_KEY = 'fond.emailForSignIn';
 const LOCAL_IMAGES = ['images/hero-bg.jpg', 'images/birre.jpg', ...Array.from({ length: 11 }, (_, i) => `images/gallery${i + 1}.jpg`)];
 const SERVICES = { cena: 'Cena', 'after-cena': 'After-Cena', evento: 'Evento' };
@@ -1177,26 +1182,45 @@ function startStatsTab() {
 async function startAuthFlow() {
     showBoot();
     const auth = await getAuthInstance();
+    admMark('Firebase Auth pronta');
     if (isSignInWithEmailLink(auth, window.location.href)) {
+        admMark('link di accesso rilevato');
         await completeEmailLinkSignIn();
     }
     onAuthStateChanged(auth, async (user) => {
-        if (!user) {
-            stopAll();
-            showLogin();
-            return;
+        // try/catch: un errore qui dentro era una promise rejection non
+        // gestita → la pagina restava sul boot all'infinito, senza errori visibili
+        try {
+            if (!user) {
+                admMark('nessun utente loggato → login');
+                stopAll();
+                showLogin();
+                return;
+            }
+            admMark('utente: ' + (user.email || user.uid));
+            const ok = await checkAuthorized(user);
+            if (!ok) {
+                admMark('email non in whitelist → schermata "non autorizzato"');
+                stopAll();
+                showUnauthorized(user.email);
+                return;
+            }
+            admMark('whitelist OK → apro la shell');
+            initShell(user);
+        } catch (err) {
+            console.error('[admin] errore nel flusso auth:', err);
+            if (window.__admBootFail) {
+                window.__admBootFail('Errore: ' + (err && (err.code || err.message)) || err);
+            }
         }
-        const ok = await checkAuthorized(user);
-        if (!ok) {
-            stopAll();
-            showUnauthorized(user.email);
-            return;
-        }
-        initShell(user);
     });
 }
 
 startAuthFlow().catch((err) => {
     console.error('[admin] bootstrap error:', err);
-    els.boot.innerHTML = '<p class="adm-inline-err">Errore di inizializzazione: ' + esc(err.message || err) + '</p>';
+    if (window.__admBootFail) {
+        window.__admBootFail('Errore di inizializzazione: ' + (err && (err.code || err.message)) || err);
+    } else {
+        els.boot.innerHTML = '<p class="adm-inline-err">Errore di inizializzazione: ' + esc(err.message || err) + '</p>';
+    }
 });
