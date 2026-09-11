@@ -21,6 +21,13 @@
     ],
     "headers": [
       {
+        "source": "/admin.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" },
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" }
+        ]
+      },
+      {
         "source": "**/*.html",
         "headers": [
           { "key": "Cache-Control", "value": "no-cache" }

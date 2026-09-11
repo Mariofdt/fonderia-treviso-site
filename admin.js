@@ -118,6 +118,7 @@ function showLogin(state, email) {
     if (state === 'sent') {
         els.login.innerHTML = `
             <div class="adm-login-card">
+                <img class="adm-login-logo" src="images/logo.svg" alt="Fonderia Treviso">
                 <h2>Controlla la tua email</h2>
                 <p class="adm-login-sub">Abbiamo inviato un link di accesso a <strong>${esc(email)}</strong>.
                 Aprilo <strong>da questo stesso dispositivo e browser</strong> per entrare.</p>
@@ -129,6 +130,7 @@ function showLogin(state, email) {
     if (state === 'confirm') {
         els.login.innerHTML = `
             <div class="adm-login-card">
+                <img class="adm-login-logo" src="images/logo.svg" alt="Fonderia Treviso">
                 <h2>Conferma la tua email</h2>
                 <p class="adm-login-sub">Stai aprendo il link di accesso da un dispositivo diverso:
                 per sicurezza inserisci di nuovo la tua email.</p>
@@ -147,6 +149,7 @@ function showLogin(state, email) {
 
     els.login.innerHTML = `
         <div class="adm-login-card">
+            <img class="adm-login-logo" src="images/logo.svg" alt="Fonderia Treviso">
             <h2>Area Gestionale</h2>
             <p class="adm-login-sub">Inserisci email e password per entrare.
             Se lasci la password vuota ti inviamo un link di accesso via email.
