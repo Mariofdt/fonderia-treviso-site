@@ -15,10 +15,12 @@
  */
 
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const { logger } = require('firebase-functions');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
+const { BetaAnalyticsDataClient } = require('@google-analytics/data');
 
 admin.initializeApp();
 
@@ -191,5 +193,110 @@ exports.onBookingCreated = onDocumentCreated(
       });
       throw err; // meglio un retry con doppia email che uno stato non marcato
     }
+  }
+);
+
+/* ------------------------------------------------------------------ *
+ * getGaStats — statistiche GA4 per la scheda "Statistiche" dell'admin.
+ *
+ * Callable: richiede utente loggato la cui email sia nella whitelist
+ * config/admin.allowedEmails (riletta a ogni chiamata, niente cache).
+ *
+ * Le credenziali NON sono nel codice: la function gira con il service
+ * account ga-stats@fonderia-treviso.iam.gserviceaccount.com (ADC) che
+ * deve essere aggiunto come LETTORE sulla proprietà GA4 4135131259
+ * (GA → Amministrazione → Gestione accessi proprietà).
+ * ------------------------------------------------------------------ */
+
+const GA_PROPERTY = 'properties/4135131259';
+const GA_SA = 'ga-stats@fonderia-treviso.iam.gserviceaccount.com';
+
+async function assertAdmin(req) {
+  const email = req.auth && req.auth.token && req.auth.token.email;
+  if (!email) {
+    throw new HttpsError('unauthenticated', 'Accesso richiesto.');
+  }
+  const cfg = await admin.firestore().doc('config/admin').get();
+  const allowed = (cfg.exists && cfg.data().allowedEmails) || [];
+  if (!allowed.includes(email)) {
+    throw new HttpsError('permission-denied', 'Email non autorizzata.');
+  }
+}
+
+exports.getGaStats = onCall(
+  { region: 'europe-west1', maxInstances: 2, serviceAccount: GA_SA },
+  async (req) => {
+    await assertAdmin(req);
+
+    const client = new BetaAnalyticsDataClient();
+    const run = async (report) => {
+      try {
+        const [res] = await client.runReport({ property: GA_PROPERTY, ...report });
+        return res;
+      } catch (err) {
+        // code 7 = PERMISSION_DENIED: quasi sempre il SA non e' ancora
+        // lettore sulla proprieta' GA4 → messaggio azionabile per l'admin
+        if (err && err.code === 7) {
+          throw new HttpsError(
+            'failed-precondition',
+            'GA4 non ancora autorizzato: aggiungi ' + GA_SA +
+              ' come Lettore nella proprieta  GA (Amministrazione → Gestione accessi proprietà).'
+          );
+        }
+        logger.error('GA runReport fallito', { message: String(err && err.message || err) });
+        throw new HttpsError('internal', 'Errore nel recupero delle statistiche.');
+      }
+    };
+
+    const kpi = async (startDate) => {
+      const res = await run({
+        dateRanges: [{ startDate, endDate: 'today' }],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'totalUsers' },
+          { name: 'screenPageViews' },
+        ],
+      });
+      const row = res.rows && res.rows[0];
+      const nums = row ? row.metricValues.map((m) => Number(m.value || 0)) : [0, 0, 0];
+      return { sessions: nums[0], users: nums[1], pageviews: nums[2] };
+    };
+
+    const table = async (dimension, metric, limit) => {
+      const res = await run({
+        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+        dimensions: [{ name: dimension }],
+        metrics: [{ name: metric }],
+        orderBys: [{ metric: { metricName: metric }, desc: true }],
+        limit,
+      });
+      return (res.rows || []).map((r) => ({
+        label: r.dimensionValues[0].value,
+        value: Number(r.metricValues[0].value || 0),
+      }));
+    };
+
+    const trend = async () => {
+      const res = await run({
+        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+        dimensions: [{ name: 'date' }],
+        metrics: [{ name: 'sessions' }],
+        orderBys: [{ dimension: { dimensionName: 'date' } }],
+      });
+      return (res.rows || []).map((r) => ({
+        date: r.dimensionValues[0].value, // YYYYMMDD
+        sessions: Number(r.metricValues[0].value || 0),
+      }));
+    };
+
+    const [last7, last30, topPages, topSources, daily] = await Promise.all([
+      kpi('7daysAgo'),
+      kpi('30daysAgo'),
+      table('pagePath', 'screenPageViews', 8),
+      table('sessionDefaultChannelGroup', 'sessions', 8),
+      trend(),
+    ]);
+
+    return { last7, last30, topPages, topSources, daily, generatedAt: new Date().toISOString() };
   }
 );

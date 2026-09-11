@@ -19,6 +19,7 @@ let _appPromise = null;
 let _dbPromise = null;
 let _authPromise = null;
 let _storagePromise = null;
+let _functionsPromise = null;
 let _fsMod = null;
 
 // ----------------------------------------
@@ -91,4 +92,22 @@ export async function getStorageInstance() {
         })();
     }
     return _storagePromise;
+}
+
+// ----------------------------------------
+// Cloud Functions (callable admin: es. getGaStats)
+// N.B. region esplicita: le function sono deployate in europe-west1,
+// il default us-central1 fallirebbe con "not-found".
+// ----------------------------------------
+export async function getFunctionsInstance() {
+    if (!_functionsPromise) {
+        _functionsPromise = (async () => {
+            const app = await getApp();
+            const mod = await import(`${CDN_BASE}/firebase-functions.js`);
+            const fns = mod.getFunctions(app, 'europe-west1');
+            if (IS_LOCAL) mod.connectFunctionsEmulator(fns, 'localhost', 5001);
+            return fns;
+        })();
+    }
+    return _functionsPromise;
 }

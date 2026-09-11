@@ -5,7 +5,7 @@
  * firebase-config.js (window.FB_CONFIG), caricati da admin.html.
  */
 
-import { getAuthInstance, getDb, getStorageInstance } from './firebase-init.js';
+import { getAuthInstance, getDb, getStorageInstance, getFunctionsInstance } from './firebase-init.js';
 import { onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, signInWithEmailAndPassword, signOut }
     from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import { collection, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot,
@@ -13,6 +13,8 @@ import { collection, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapsh
     from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { ref as storageRef, uploadBytes, getDownloadURL }
     from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js';
+import { httpsCallable }
+    from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-functions.js';
 
 const EMAIL_LS_KEY = 'fond.emailForSignIn';
 const LOCAL_IMAGES = ['images/hero-bg.jpg', 'images/birre.jpg', ...Array.from({ length: 11 }, (_, i) => `images/gallery${i + 1}.jpg`)];
@@ -33,6 +35,7 @@ const els = {
         popups: $('tab-popups'),
         bookings: $('tab-bookings'),
         newsletter: $('tab-newsletter'),
+        stats: $('tab-stats'),
     },
 };
 
@@ -261,6 +264,7 @@ async function initShell(user) {
     startPopupsTab();
     startBookingsTab();
     startNewsletterTab();
+    startStatsTab();
 }
 
 function stopAll() {
@@ -1080,6 +1084,94 @@ async function checkAuthorized(user) {
         console.error('[admin] whitelist check error (trattato come non autorizzato):', err);
     }
     return false;
+}
+
+/* ------------------------------------ tab: statistiche (GA4) ------------------------------------ */
+
+const fmtNum = (n) => Number(n || 0).toLocaleString('it-IT');
+
+function startStatsTab() {
+    const panel = els.panels.stats;
+    if (!panel) return;
+
+    panel.innerHTML = `
+        <div class="adm-panel-head">
+            <div>
+                <h2>Statistiche sito</h2>
+                <p class="adm-panel-lead">Dati Google Analytics degli ultimi 7 e 30 giorni. Google li aggiorna con qualche ora di ritardo.</p>
+            </div>
+            <button class="adm-btn" data-stats-refresh type="button">Aggiorna</button>
+        </div>
+        <div id="statsBody"><div class="adm-empty">Caricamento statistiche…</div></div>`;
+
+    const body = panel.querySelector('#statsBody');
+
+    function kpi(label, v7, v30) {
+        return `
+        <div class="adm-kpi">
+            <div class="adm-kpi-label">${label}</div>
+            <div class="adm-kpi-value">${fmtNum(v7)}</div>
+            <div class="adm-kpi-sub">ultimi 7 giorni · ${fmtNum(v30)} in 30 gg</div>
+        </div>`;
+    }
+
+    function bars(title, rows, formatLabel) {
+        if (!rows || !rows.length) {
+            return `<div class="adm-stats-block"><h3>${title}</h3><div class="adm-empty">Nessun dato nel periodo.</div></div>`;
+        }
+        const max = Math.max(...rows.map((r) => r.value), 1);
+        const items = rows.map((r) => `
+            <div class="adm-bar-row">
+                <span class="adm-bar-label" title="${esc(r.label)}">${esc(formatLabel ? formatLabel(r.label) : r.label)}</span>
+                <span class="adm-bar-track"><span class="adm-bar-fill" style="width:${Math.max(2, Math.round((r.value / max) * 100))}%"></span></span>
+                <span class="adm-bar-value">${fmtNum(r.value)}</span>
+            </div>`).join('');
+        return `<div class="adm-stats-block"><h3>${title}</h3>${items}</div>`;
+    }
+
+    function trend(daily) {
+        if (!daily || !daily.length) return '';
+        const max = Math.max(...daily.map((d) => d.sessions), 1);
+        const cells = daily.map((d) => {
+            const label = d.date ? `${d.date.slice(6, 8)}/${d.date.slice(4, 6)}` : '';
+            return `<div class="adm-trend-col" title="${label}: ${fmtNum(d.sessions)} sessioni">
+                <span class="adm-trend-bar" style="height:${Math.max(3, Math.round((d.sessions / max) * 100))}%"></span>
+            </div>`;
+        }).join('');
+        return `<div class="adm-stats-block"><h3>Sessioni giornaliere (30 gg)</h3><div class="adm-trend">${cells}</div></div>`;
+    }
+
+    function render(s) {
+        body.innerHTML = `
+            <div class="adm-kpi-grid">
+                ${kpi('Visite (sessioni)', s.last7.sessions, s.last30.sessions)}
+                ${kpi('Visitatori', s.last7.users, s.last30.users)}
+                ${kpi('Pagine viste', s.last7.pageviews, s.last30.pageviews)}
+            </div>
+            ${trend(s.daily)}
+            ${bars('Pagine pi&ugrave; viste (30 gg)', s.topPages)}
+            ${bars('Da dove arrivano (30 gg)', s.topSources)}`;
+    }
+
+    async function load() {
+        body.innerHTML = '<div class="adm-empty">Caricamento statistiche…</div>';
+        try {
+            const fns = await getFunctionsInstance();
+            const { data } = await httpsCallable(fns, 'getGaStats')();
+            render(data);
+        } catch (err) {
+            // callable errors: il messaggio utile e' in details per gli HttpsError,
+            // err.message resta il generico "INTERNAL"/"FAILED_PRECONDITION"
+            const msg = (err && (err.details || err.message)) || String(err);
+            body.innerHTML = `<div class="adm-empty">Statistiche non disponibili.<br><span class="adm-stats-err">${esc(msg)}</span></div>`;
+        }
+    }
+
+    panel.addEventListener('click', (e) => {
+        if (e.target.closest('[data-stats-refresh]')) load();
+    });
+
+    load();
 }
 
 async function startAuthFlow() {

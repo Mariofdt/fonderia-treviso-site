@@ -741,3 +741,122 @@
         width: 100%;
     }
 }
+
+/* ---------- Statistiche (GA4) ---------- */
+.adm-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+}
+
+.adm-kpi {
+    background: var(--color-surface);
+    border: 1px solid rgba(240, 235, 227, 0.08);
+    border-radius: 12px;
+    padding: 18px 20px;
+}
+
+.adm-kpi-label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+    margin-bottom: 6px;
+}
+
+.adm-kpi-value {
+    font-family: var(--font-heading);
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--color-white);
+    line-height: 1.1;
+}
+
+.adm-kpi-sub {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    margin-top: 6px;
+}
+
+.adm-stats-block {
+    background: var(--color-surface);
+    border: 1px solid rgba(240, 235, 227, 0.08);
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin-bottom: 18px;
+}
+
+.adm-stats-block h3 {
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--color-white);
+    margin-bottom: 14px;
+}
+
+.adm-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+}
+
+.adm-bar-label {
+    flex: 0 0 32%;
+    min-width: 90px;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.adm-bar-track {
+    flex: 1;
+    height: 8px;
+    background: rgba(240, 235, 227, 0.07);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.adm-bar-fill {
+    display: block;
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: 4px;
+}
+
+.adm-bar-value {
+    flex: 0 0 auto;
+    min-width: 42px;
+    text-align: right;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.adm-trend {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 90px;
+}
+
+.adm-trend-col {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+}
+
+.adm-trend-bar {
+    width: 100%;
+    background: var(--color-accent);
+    border-radius: 3px 3px 0 0;
+    opacity: 0.85;
+}
+
+.adm-stats-err {
+    font-size: 0.82rem;
+    color: #e08d8a;
+}
