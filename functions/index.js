@@ -981,6 +981,11 @@ exports.onMemberCreated = onDocumentCreated(
     // referredBy null (registrazione senza refCode, refCode inesistente o
     // auto-invito) → niente da conteggiare.
     if (!member.referredBy) return;
+    // Auto-riferimento diretto (possibile solo via scrittura admin): no-op.
+    if (member.referredBy === snap.id) {
+      logger.warn('onMemberCreated: referredBy self-reference, skip', { memberId: snap.id });
+      return;
+    }
 
     const db = admin.firestore();
     const memberRef = db.collection('members').doc(snap.id);
@@ -1029,20 +1034,31 @@ exports.onMemberCreated = onDocumentCreated(
       if (p.endsAt && p.endsAt.toDate() < now) continue;
       if (!p.refTarget || (referrer.referralCount || 0) < p.refTarget) continue;
       const claimRef = db.collection('claims').doc(d.id + '_' + member.referredBy);
-      const existing = await claimRef.get();
-      if (existing.exists) continue; // 1 premio per promo per tessera
-      await claimRef.set({
-        memberId: member.referredBy, promoId: d.id,
-        code: randomToken(), status: 'issued',
-        screenshotPath: null, aiModel: null,
-        aiNote: 'Referral: soglia ' + p.refTarget + ' raggiunta',
-        createdAt: FieldValue.serverTimestamp(),
-        redeemedAt: null, redeemedVia: null, redeemedBy: null,
+      // Claim + actionsCount dentro UNA transazione: due eventi members distinti
+      // dello stesso referente possono correre in parallelo (maxInstances 2) —
+      // senza transazione entrambi vedrebbero il claim inesistente e il secondo
+      // set() sovrascriverebbe il code del primo (QR stale) con doppio
+      // incremento di actionsCount. La transazione ri-legge il claim: se esiste
+      // → no-op completo; altrimenti set claim + increment atomici.
+      const issued = await db.runTransaction(async (tx) => {
+        const existing = await tx.get(claimRef);
+        if (existing.exists) return false; // 1 premio per promo per tessera
+        tx.set(claimRef, {
+          memberId: member.referredBy, promoId: d.id,
+          code: randomToken(), status: 'issued',
+          screenshotPath: null, aiModel: null,
+          aiNote: 'Referral: soglia ' + p.refTarget + ' raggiunta',
+          createdAt: FieldValue.serverTimestamp(),
+          redeemedAt: null, redeemedVia: null, redeemedBy: null,
+        });
+        tx.update(referrerRef, {
+          ['actionsCount.referral']: FieldValue.increment(1),
+        });
+        return true;
       });
-      await referrerRef.update({
-        ['actionsCount.referral']: FieldValue.increment(1),
-      });
-      logger.info('Claim referral emesso', { promoId: d.id, memberId: member.referredBy });
+      if (issued) {
+        logger.info('Claim referral emesso', { promoId: d.id, memberId: member.referredBy });
+      }
     }
 
     const refreshed = (await referrerRef.get()).data();
