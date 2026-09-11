@@ -754,3 +754,193 @@ exports.getTessera = onCall(
     };
   }
 );
+
+/* ------------------------------------------------------------------ *
+ * submitClaim — caricamento screenshot a prova di azione promo.
+ *
+ * Callable: { token, promoId, imagePath } → { status, reason, tesseraUrl }.
+ * Invarianti:
+ *   - 1 claim per <promoId>_<memberId>: issued/pending_review bloccano,
+ *     rejected (o assente) → nuovo tentativo fino a 5 upload per promo;
+ *   - rate limit 10 claim/ora per membro (finestra YYYY-MM-DDTHH);
+ *   - promo referral/scaduta/inattiva → errore, niente claim;
+ *   - imagePath deve stare sotto claims-inbox/<memberId>/ (no traversal).
+ * La prova è validata da Gemini 2.5 Flash-Lite vision (Vertex, stesso
+ * pattern AUTH/fetch di suggestEventCopy sopra). IA indisponibile o
+ * risposta non interpretabile → verdict null → pending_review con
+ * approvazione manuale staff: MAI inventare un verdetto.
+ * ------------------------------------------------------------------ */
+
+const MAX_UPLOAD_ATTEMPTS = 5;
+const MAX_CLAIMS_PER_HOUR = 10;
+
+function geminiVisionPrompt(checklist) {
+  return {
+    systemInstruction: {
+      parts: [{ text:
+        'Sei il verificatore delle promozioni di Fonderia Treviso (birreria e cocktail bar, ' +
+        'Instagram @fonderiatreviso). Ti arriva uno screenshot che un cliente ha caricato per ' +
+        'dimostrare di aver compiuto un\'azione social. Valuta SOLO ciò che vedi; se un elemento ' +
+        'richiesto non è chiaramente visibile, la prova non è valida. Rispondi SOLO con un oggetto ' +
+        'JSON: {"valid": boolean, "reason": "una frase breve in italiano, comprensibile al cliente"}',
+      }],
+    },
+    text:
+      'Checklist della promozione (tutti gli elementi devono essere chiaramente visibili):\n' +
+      checklist + '\n\nLo screenshot soddisfa la checklist?',
+  };
+}
+
+async function geminiValidateImage(imageB64, mimeType, checklist) {
+  const p = geminiVisionPrompt(checklist);
+  const auth = new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
+  const client = await auth.getClient();
+  const { token } = await client.getAccessToken();
+  const resp = await fetch(VERTEX_GEMINI_URL, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: p.systemInstruction,
+      contents: [{
+        role: 'user',
+        parts: [
+          { text: p.text },
+          { inlineData: { mimeType, data: imageB64 } },
+        ],
+      }],
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: 150,
+        responseMimeType: 'application/json',
+      },
+    }),
+  });
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    logger.error('Gemini vision non-OK', { status: resp.status, body: body.slice(0, 300) });
+    return null; // null = IA indisponibile → pending_review (mai inventare un verdetto)
+  }
+  const json = await resp.json();
+  const raw = (((json.candidates || [])[0] || {}).content || {}).parts
+    ? json.candidates[0].content.parts.map((x) => x.text || '').join('')
+    : '';
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed.valid !== 'boolean') return null;
+    return { valid: parsed.valid, reason: String(parsed.reason || '').slice(0, 200) };
+  } catch {
+    logger.error('Gemini vision: risposta non-JSON', { raw: raw.slice(0, 300) });
+    return null;
+  }
+}
+
+exports.submitClaim = onCall(
+  { region: 'europe-west1', maxInstances: 2, timeoutSeconds: 60 },
+  async (req) => {
+    const member = await assertMember(req.data && req.data.token);
+    const promoId = String((req.data && req.data.promoId) || '').trim();
+    const imagePath = String((req.data && req.data.imagePath) || '').trim();
+    const db = admin.firestore();
+
+    if (!promoId) throw new HttpsError('invalid-argument', 'Promozione mancante.');
+    if (!imagePath.startsWith('claims-inbox/' + member.id + '/') || imagePath.includes('..')) {
+      throw new HttpsError('permission-denied', 'Percorso immagine non valido.');
+    }
+
+    const promoDoc = await db.collection('promos').doc(promoId).get();
+    if (!promoDoc.exists || !promoDoc.data().active) {
+      throw new HttpsError('failed-precondition', 'Questa promozione non è più attiva.');
+    }
+    const promo = promoDoc.data();
+    const now = new Date();
+    if (promo.startsAt && promo.startsAt.toDate() > now) {
+      throw new HttpsError('failed-precondition', 'La promozione non è ancora iniziata.');
+    }
+    if (promo.endsAt && promo.endsAt.toDate() < now) {
+      throw new HttpsError('failed-precondition', 'Questa promozione è terminata.');
+    }
+    if (promo.actionType === 'referral') {
+      throw new HttpsError('invalid-argument',
+        'Questa promozione si completa invitando amici, non con uno screenshot.');
+    }
+
+    const claimRef = db.collection('claims').doc(promoId + '_' + member.id);
+    const claimSnap = await claimRef.get();
+    if (claimSnap.exists && claimSnap.data().status !== 'rejected') {
+      throw new HttpsError('already-exists',
+        'Hai già una richiesta per questa promozione. Controlla la tua tessera.');
+    }
+
+    // Rate limit orario + retry limit
+    const m = member.data;
+    const hourKey = new Date().toISOString().slice(0, 13); // YYYY-MM-DDTHH
+    const attempts = (m.uploadAttempts || {})[promoId] || 0;
+    if (attempts >= MAX_UPLOAD_ATTEMPTS) {
+      throw new HttpsError('resource-exhausted',
+        'Hai esaurito i tentativi per questa promozione: passa al banco.');
+    }
+    const rate = m.claimsRate || {};
+    if (rate.hour === hourKey && rate.count >= MAX_CLAIMS_PER_HOUR) {
+      throw new HttpsError('resource-exhausted', 'Troppe richieste: riprova tra un\'ora.');
+    }
+
+    // Scarica l'immagine da Storage e valida con Gemini vision
+    let verdict = null;
+    try {
+      const bucket = admin.storage().bucket();
+      const file = bucket.file(imagePath);
+      const [meta] = await file.getMetadata();
+      const mime = String(meta.contentType || 'image/jpeg');
+      if (!mime.startsWith('image/')) {
+        throw new HttpsError('invalid-argument', 'Il file caricato non è un\'immagine.');
+      }
+      const [buf] = await file.download();
+      verdict = await geminiValidateImage(buf.toString('base64'), mime, promo.aiChecklist || '');
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      logger.error('submitClaim: validazione impossibile', { error: String(err && err.message || err) });
+      verdict = null;
+    }
+
+    // Aggiorna contatori anti-abuso (sempre, prima dell'esito)
+    await member.ref.update({
+      ['uploadAttempts.' + promoId]: FieldValue.increment(1),
+      claimsRate: { hour: hourKey, count: rate.hour === hourKey ? (rate.count || 0) + 1 : 1 },
+    });
+
+    if (verdict === null) {
+      // IA indisponibile / immagine illeggibile → approvazione manuale staff
+      await claimRef.set({
+        memberId: member.id, promoId,
+        code: randomToken(), status: 'pending_review',
+        screenshotPath: imagePath, aiModel: 'gemini-2.5-flash-lite',
+        aiNote: 'Validazione automatica non disponibile',
+        createdAt: FieldValue.serverTimestamp(),
+        redeemedAt: null, redeemedVia: null, redeemedBy: null,
+      });
+      return { status: 'pending_review', reason: 'Verifica in corso da parte dello staff: trovi l\'esito sulla tua tessera.', tesseraUrl: TESSERA_BASE + String(req.data.token) };
+    }
+
+    if (!verdict.valid) {
+      // Rifiuto: niente doc claim (retry consentito fino al limite tentativi)
+      return { status: 'rejected', reason: verdict.reason || 'La prova non soddisfa la checklist.', tesseraUrl: TESSERA_BASE + String(req.data.token) };
+    }
+
+    // Valido → claim issued con QR univoco
+    await claimRef.set({
+      memberId: member.id, promoId,
+      code: randomToken(), status: 'issued',
+      screenshotPath: imagePath, aiModel: 'gemini-2.5-flash-lite',
+      aiNote: verdict.reason || '',
+      createdAt: FieldValue.serverTimestamp(),
+      redeemedAt: null, redeemedVia: null, redeemedBy: null,
+    });
+    await member.ref.update({
+      ['actionsCount.' + promo.actionType]: FieldValue.increment(1),
+    });
+    const updated = (await member.ref.get()).data();
+    await evaluateBadges(member.ref, updated);
+    logger.info('submitClaim issued', { memberId: member.id, promoId });
+    return { status: 'issued', reason: 'Verifica superata! Mostra il QR al banco per il tuo premio.', tesseraUrl: TESSERA_BASE + String(req.data.token) };
+  }
+);
