@@ -1070,3 +1070,106 @@ exports.onMemberCreated = onDocumentCreated(
     });
   }
 );
+
+/* --- Riscatto QR al banco: peekClaim (pubblica) + redeemQr (bruciatura) --- */
+
+// Il QR premio contiene SOLO il code (token opaco, 32 hex): niente PII nel
+// payload QR. lookup per code perché il QR non conosce il docId del claim.
+async function findClaimByCode(code) {
+  const c = String(code || '').trim();
+  if (!/^[a-f0-9]{32}$/.test(c)) {
+    throw new HttpsError('not-found', 'Codice QR non valido.');
+  }
+  const snap = await admin.firestore().collection('claims')
+    .where('code', '==', c).limit(1).get();
+  if (snap.empty) {
+    throw new HttpsError('not-found', 'Codice QR non trovato.');
+  }
+  return snap.docs[0];
+}
+
+// Solo i dati visibili al banco: mai code, screenshotPath o note interne.
+async function claimPublicPayload(claimDoc) {
+  const c = claimDoc.data();
+  const db = admin.firestore();
+  const [promo, member] = await Promise.all([
+    db.collection('promos').doc(c.promoId).get(),
+    db.collection('members').doc(c.memberId).get(),
+  ]);
+  return {
+    prizeLabel: (promo.exists && promo.data().prizeLabel) || 'Premio',
+    promoTitle: (promo.exists && promo.data().title) || '',
+    memberName: (member.exists && member.data().name) || '',
+    status: c.status,
+    redeemedAt: c.redeemedAt && c.redeemedAt.toDate ? c.redeemedAt.toDate().toISOString() : null,
+  };
+}
+
+exports.peekClaim = onCall(
+  { region: 'europe-west1', maxInstances: 2 },
+  async (req) => claimPublicPayload(await findClaimByCode(req.data && req.data.code))
+);
+
+// Unica via di bruciatura. Admin loggato (app staff) salta il PIN; altrimenti
+// PIN staff da config/gamification. Il valore del PIN non viene mai loggato:
+// solo confronto. status già 'redeemed' NON è un errore anonimo: si
+// restituiscono i dati del riscatto esistente (chi/quando/via) così lo staff
+// capisce cosa è successo; la bruciatura resta protetta dalla transazione.
+exports.redeemQr = onCall(
+  { region: 'europe-west1', maxInstances: 2 },
+  async (req) => {
+    const email = req.auth && req.auth.token && req.auth.token.email;
+    let authorized = false;
+    if (email) {
+      try { await assertAdmin(req); authorized = true; } catch { /* non admin: PIN sotto */ }
+    }
+    if (!authorized) {
+      const cfg = await admin.firestore().doc('config/gamification').get();
+      const staffPin = cfg.exists ? String(cfg.data().staffPin || '') : '';
+      const pin = String((req.data && req.data.pin) || '');
+      if (!staffPin || pin !== staffPin) {
+        throw new HttpsError('permission-denied', 'PIN staff errato.');
+      }
+    }
+
+    const claimDoc = await findClaimByCode(req.data && req.data.code);
+    const c = claimDoc.data();
+    if (c.status === 'redeemed') {
+      const payload = await claimPublicPayload(claimDoc);
+      return {
+        ok: false,
+        alreadyRedeemed: true,
+        prizeLabel: payload.prizeLabel,
+        memberName: payload.memberName,
+        redeemedAt: payload.redeemedAt,
+        redeemedVia: c.redeemedVia || null,
+        redeemedBy: c.redeemedBy || null,
+      };
+    }
+    if (c.status !== 'issued') {
+      throw new HttpsError('failed-precondition', 'Questo premio non è riscattabile (in verifica o rifiutato).');
+    }
+
+    // Transazione: bruciatura atomica, doppio tap sicuro. Se uno scan
+    // concorrente ha già bruciato, la ri-lettura dentro la transazione lo
+    // intercetta: nessuna seconda scrittura, nessun doppio premio.
+    // FieldValue dal subpath (ruling): admin.firestore.FieldValue in
+    // emulatore risulta undefined.
+    await admin.firestore().runTransaction(async (tx) => {
+      const fresh = await tx.get(claimDoc.ref);
+      if (fresh.data().status !== 'issued') {
+        throw new HttpsError('failed-precondition', 'Premio già riscattato da un altro accesso.');
+      }
+      tx.update(claimDoc.ref, {
+        status: 'redeemed',
+        redeemedAt: FieldValue.serverTimestamp(),
+        redeemedVia: email ? 'staff_app' : 'pin',
+        redeemedBy: email || null,
+      });
+    });
+
+    logger.info('redeemQr OK', { claimId: claimDoc.id, via: email ? 'staff' : 'pin' });
+    const payload = await claimPublicPayload(claimDoc);
+    return { ok: true, prizeLabel: payload.prizeLabel, memberName: payload.memberName };
+  }
+);
