@@ -297,8 +297,9 @@ class FonderiaMusic {
     }
 }
 
-// Global instance
+// Global instance (esposta su window per test/debug E2E)
 let fonderiaMusic = new FonderiaMusic();
+window.fonderiaMusic = fonderiaMusic;
 
 // Override the sound toggle in wow.js to use this
 function initMusicToggle() {

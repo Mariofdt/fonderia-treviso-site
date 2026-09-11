@@ -300,3 +300,161 @@ exports.getGaStats = onCall(
     return { last7, last30, topPages, topSources, daily, generatedAt: new Date().toISOString() };
   }
 );
+
+/* ------------------------------------------------------------------ *
+ * onNewsletterCreated — email di benvenuto al nuovo iscritto.
+ *
+ * Trigger: creazione doc in newsletter/{email} (write anonimo dal sito).
+ * Contenuto: logo, messaggio di benvenuto, prossimi eventi attivi
+ * (letti da Firestore), riepilogo servizi, CTA WhatsApp.
+ * Gli iscritti sono già visibili in admin (tab Newsletter).
+ * ------------------------------------------------------------------ */
+
+const SITE_URL = 'https://fonderia-treviso.web.app';
+const WA_URL = 'https://wa.me/393204137183';
+const LOGO_URL = SITE_URL + '/images/logo-email.png';
+
+function fmtEventDate(ts) {
+  try {
+    const d = ts && ts.toDate ? ts.toDate() : null;
+    if (!d) return '';
+    return new Intl.DateTimeFormat('it-IT', {
+      weekday: 'short', day: 'numeric', month: 'long',
+    }).format(d);
+  } catch (e) {
+    return '';
+  }
+}
+
+function escapeHtml(s) {
+  return String(s === undefined || s === null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+exports.onNewsletterCreated = onDocumentCreated(
+  {
+    document: 'newsletter/{subscriberId}',
+    region: 'europe-west1',
+    maxInstances: 2,
+    retry: true,
+    secrets: [brevoSmtpKey, brevoSmtpUser, venueEmailParam, fromEmailParam],
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) {
+      logger.error('onNewsletterCreated: evento senza data snapshot');
+      return;
+    }
+    const sub = snap.data();
+    const toEmail = String(sub.email || event.params.subscriberId || '').toLowerCase();
+    if (!toEmail) {
+      logger.error('onNewsletterCreated: doc senza email', { id: event.params.subscriberId });
+      return;
+    }
+
+    const smtpUser = brevoSmtpUser.value() || process.env.BREVO_SMTP_USER;
+    const smtpPass = brevoSmtpKey.value();
+    const fromEmail = fromEmailParam.value() || process.env.FROM_EMAIL || smtpUser;
+    if (!smtpUser || !smtpPass) {
+      logger.error('Config SMTP mancante, email di benvenuto NON inviata', { toEmail });
+      return;
+    }
+
+    // Prossimi eventi attivi (best-effort: se la lettura fallisce l'email
+    // parte comunque senza il blocco eventi)
+    let eventsHtml = '';
+    try {
+      const evSnap = await admin.firestore().collection('events')
+        .where('active', '==', true).orderBy('date', 'asc').limit(5).get();
+      if (!evSnap.empty) {
+        const rows = evSnap.docs.map((d) => {
+          const ev = d.data();
+          const when = [fmtEventDate(ev.date), ev.time].filter(Boolean).join(' · ');
+          return '<tr><td style="padding:10px 0;border-bottom:1px solid #26211c">'
+            + '<div style="font-weight:700;color:#ffffff;font-size:15px">' + escapeHtml(ev.title || '') + '</div>'
+            + (ev.tagline ? '<div style="color:#a8a098;font-size:13px;margin-top:2px">' + escapeHtml(ev.tagline) + '</div>' : '')
+            + (when ? '<div style="color:#e78c37;font-size:13px;margin-top:4px">' + escapeHtml(when) + '</div>' : '')
+            + '</td></tr>';
+        }).join('');
+        eventsHtml =
+          '<h2 style="font-size:18px;color:#ffffff;margin:32px 0 8px">Prossimi eventi</h2>'
+          + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">' + rows + '</table>';
+      }
+    } catch (err) {
+      logger.error('Lettura eventi per welcome email FALLITA (email parte senza blocco eventi)', {
+        error: String(err && err.message || err),
+      });
+    }
+
+    const html =
+      '<div style="background:#060606;padding:32px 16px;font-family:Arial,Helvetica,sans-serif">'
+      + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#141210;border-radius:16px;overflow:hidden;border:1px solid #26211c">'
+      + '<tr><td style="padding:32px 32px 8px;text-align:center">'
+      + '<img src="' + LOGO_URL + '" alt="Fonderia Treviso" width="260" style="max-width:80%;height:auto">'
+      + '</td></tr>'
+      + '<tr><td style="padding:16px 32px 32px">'
+      + '<h1 style="font-size:24px;color:#ffffff;margin:16px 0 8px;text-align:center">Benvenuto alla Fonderia! 🍻</h1>'
+      + '<p style="color:#cfc9c0;font-size:15px;line-height:1.6;text-align:center;margin:0 0 8px">'
+      + 'Grazie per esserti iscritto alla nostra newsletter: sarai il primo a sapere '
+      + 'di serate live, DJ set, menu speciali e serate a tema.'
+      + '</p>'
+      + eventsHtml
+      + '<h2 style="font-size:18px;color:#ffffff;margin:32px 0 8px">Cosa trovi da noi</h2>'
+      + '<ul style="color:#cfc9c0;font-size:14px;line-height:1.8;margin:0;padding-left:18px">'
+      + '<li>Cena con menu del territorio e pizza</li>'
+      + '<li>After-cena: cocktail e birre artigianali</li>'
+      + '<li>Venerd&igrave; live e sabato DJ set</li>'
+      + '<li>Sale private per feste, compleanni e cene aziendali</li>'
+      + '</ul>'
+      + '<div style="text-align:center;margin:28px 0 8px">'
+      + '<a href="' + WA_URL + '" style="display:inline-block;background:#c45d26;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 32px;border-radius:999px">Prenota su WhatsApp</a>'
+      + '</div>'
+      + '<p style="text-align:center;margin:16px 0 0"><a href="' + SITE_URL + '" style="color:#e78c37;font-size:13px">fonderia-treviso.web.app</a></p>'
+      + '</td></tr>'
+      + '<tr><td style="padding:20px 32px 28px;border-top:1px solid #26211c">'
+      + '<p style="color:#8a8278;font-size:12px;line-height:1.6;margin:0;text-align:center">'
+      + 'Fonderia Treviso · Via Fonderia 113, 31100 Treviso (TV)<br>'
+      + 'Ricevi questa email perch&eacute; ti sei iscritto alla newsletter su fonderia-treviso.web.app. '
+      + 'Per cancellarti rispondi a questa email con oggetto &quot;Cancellami&quot;.'
+      + '</p>'
+      + '</td></tr></table></div>';
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp-relay.brevo.com',
+      port: 587,
+      secure: false,
+      requireTLS: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    try {
+      await transporter.sendMail({
+        from: '"Fonderia Treviso" <' + fromEmail + '>',
+        to: toEmail,
+        subject: 'Benvenuto alla Fonderia! 🍻',
+        html,
+      });
+      logger.info('Email di benvenuto newsletter inviata', { toEmail });
+    } catch (err) {
+      logger.error('Invio email di benvenuto FALLITO', {
+        toEmail,
+        error: String(err && err.message || err),
+      });
+      throw err; // retry:true
+    }
+
+    try {
+      await snap.ref.update({
+        welcomed: true,
+        welcomedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (err) {
+      logger.error('Update welcomed FALLITO', {
+        toEmail,
+        error: String(err && err.message || err),
+      });
+      throw err;
+    }
+  }
+);

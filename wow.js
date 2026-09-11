@@ -6,7 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initLoader();
     initParticles();
     initCustomCursor();
-    initSoundToggle();
+    // initSoundToggle() era qui: la funzione non esiste più (sound gestito da
+    // music.js→initMusicToggle) e il suo ReferenceError bloccava i due init sotto
     initGlitchEffect();
     initSmoothScrollEnhanced();
 });
