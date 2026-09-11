@@ -370,7 +370,7 @@ function bindParticipate(promo, tessera, refCode) {
         return;
       }
       setError('claimError', errorMessage(err,
-        'Invio non riuscito: controlla la connessione e riprova (i tentativi sono limitati: max 10 richieste all’ora).'));
+        'Invio non riuscito: controlla la connessione e riprova (i tentativi di verifica per questa promozione sono limitati).'));
       btn.textContent = 'Invia la prova';
       input.disabled = false;
       btn.disabled = !picked;
@@ -409,7 +409,7 @@ function renderStatus(data) {
     ${badgeHtml('Prova non valida')}
     <h1 class="promo-title">Non ci siamo</h1>
     <p class="promo-desc">${esc(reason || 'La prova non soddisfa i requisiti della promozione.')}</p>
-    <p class="promo-desc">Puoi riprovare con una foto più chiara — occhio, i tentativi sono limitati (max 10 richieste all’ora) — oppure passa al banco: lo staff ti aiuta a ritirare il premio.</p>
+    <p class="promo-desc">Puoi riprovare con una foto più chiara — occhio, i tentativi di verifica automatica per questa promozione sono limitati — oppure passa al banco: lo staff ti aiuta a ritirare il premio.</p>
     <button type="button" class="btn btn-primary promo-btn" id="retryBtn">Riprova</button>
     ${tesseraUrl ? `<a class="promo-link" href="${esc(tesseraUrl)}">La mia tessera</a>` : ''}`;
   const retry = document.getElementById('retryBtn');

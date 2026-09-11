@@ -15,8 +15,10 @@
 // Invarianti:
 //  - alreadyRedeemed e' un caso UI DEDICATO (warning), non un errore:
 //    al banco deve saltare all'occhio che il QR e' gia' stato usato;
-//  - nessun retry automatico sul PIN: ogni tentativo errato consuma
-//    un contatore/rate-limit lato server, lo staff ridigita a mano;
+//  - nessun retry automatico sul PIN: un PIN errato riceve un
+//    permission-denied SENZA contatore/rate-limit lato server, lo staff
+//    ridigita a mano. Il presidio anti-brute-force e' App Check (in
+//    arrivo col deploy) + maxInstances:2 su redeemQr;
 //  - PIN mai hardcoded, mai loggato: digitato dallo staff e tenuto
 //    in sessionStorage (vive solo per la sessione/tab del banco);
 //  - ogni dato dal server passa da esc(): mai innerHTML non escaped.

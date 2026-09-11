@@ -3,8 +3,11 @@
 // Mostra il primo popup attivo nella finestra startDate..endDate.
 // Dismissal per-versione in localStorage: se l'admin modifica il
 // popup (bump di `version`), il popup torna visibile a tutti.
-// Fallback: se nessun popup evento è attivo, mostra la promo gamification
-// attiva (priorità: evento > promo; dismissal separato per promo-<id>).
+// Fallback: se NESSUN popup evento è mostrabile (nessuno attivo o date
+// non valide), mostra la promo gamification attiva. Se invece il popup
+// evento è valido ma l'utente lo ha già chiuso, niente fallback: non si
+// sostituisce un "no" dell'utente con un'altra interruzione.
+// (priorità: evento > promo; dismissal separato per promo-<id>)
 // ========================================
 
 import { getDb, getFsMod } from './firebase-init.js';
@@ -28,18 +31,23 @@ async function initPopup() {
         const snap = await fs.getDocs(q);
 
         const now = new Date();
-        const popup = snap.docs
+        const validPopups = snap.docs
             .map(d => ({ id: d.id, ...d.data() }))
-            .find(p =>
+            .filter(p =>
                 p.startDate && p.endDate &&
                 p.startDate.toDate() <= now &&
-                p.endDate.toDate() >= now &&
-                !isDismissed(p)
+                p.endDate.toDate() >= now
             );
+        const popup = validPopups.find(p => !isDismissed(p));
 
         if (!popup) {
-            // Fallback: nessun popup evento valido → prova la promo attiva
-            await initPromoPopup(fs, db);
+            // Fallback promo SOLO se non esiste ALCUN popup evento valido
+            // (query vuota / date non valide). Se l'utente ha appena chiuso
+            // un popup evento in questa visita (dismissal in localStorage),
+            // non gliene riproponiamo un altro: niente fallback.
+            if (validPopups.length === 0) {
+                await initPromoPopup(fs, db);
+            }
             return;
         }
         setTimeout(() => showPopup(popup), SHOW_DELAY_MS);
