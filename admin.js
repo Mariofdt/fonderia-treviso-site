@@ -294,49 +294,65 @@ function eventFormHTML(ev) {
         <div class="adm-form-title">${isEdit ? 'Modifica evento' : 'Nuovo evento'}</div>
         <div class="adm-row">
             <div class="adm-group">
-                <label for="evTitle">Titolo</label>
+                <label for="evTitle">Titolo <span class="adm-tip" tabindex="0" data-tip="Obbligatorio. È il nome dell'evento, in grande sulla card del sito e nelle email di benvenuto.">?</span></label>
                 <input id="evTitle" type="text" required value="${esc(ev?.title || '')}" placeholder="Apertura Stagione">
             </div>
             <div class="adm-group">
-                <label for="evTagline">Tagline</label>
+                <label for="evTagline">Tagline <span class="adm-tip" tabindex="0" data-tip="Opzionale. Frase breve sotto il titolo. Se la lasci vuota, sul sito compare il testo della descrizione.">?</span></label>
                 <input id="evTagline" type="text" value="${esc(ev?.tagline || '')}" placeholder="Una serata speciale…">
             </div>
         </div>
         <div class="adm-row--3 adm-row">
             <div class="adm-group">
-                <label for="evDate">Data</label>
+                <label for="evDate">Data <span class="adm-tip" tabindex="0" data-tip="Obbligatoria. Ordina gli eventi sul sito dal più vicino al più lontano; gli eventi passati spariscono da soli.">?</span></label>
                 <input id="evDate" type="date" required value="${isEdit ? toDateInputValue(ev.date) : ''}">
             </div>
             <div class="adm-group">
-                <label for="evTime">Ora</label>
+                <label for="evTime">Ora <span class="adm-tip" tabindex="0" data-tip="Opzionale. Mostrata accanto alla data: «sabato 4 ottobre, ore 19:00». Formato libero (es. 21:00 o «dalle 21»).">?</span></label>
                 <input id="evTime" type="text" value="${esc(ev?.time || '')}" placeholder="19:00">
             </div>
             <div class="adm-group">
-                <label for="evOrder">Ordine</label>
+                <label for="evOrder">Ordine <span class="adm-tip" tabindex="0" data-tip="Serve solo se due eventi hanno la stessa data: il numero più basso compare prima. Altrimenti lascia 0.">?</span></label>
                 <input id="evOrder" type="number" step="1" value="${esc(ev?.order ?? 0)}">
             </div>
         </div>
         <div class="adm-group">
-            <label for="evDescription">Descrizione</label>
+            <div class="adm-label-row">
+                <label for="evDescription">Descrizione <span class="adm-tip" tabindex="0" data-tip="Opzionale. Testo esteso sotto la tagline sulla card del sito. Il bottone ✨ propone un testo: rivedilo sempre prima di salvare.">?</span></label>
+                <button type="button" id="evAiBtn" class="adm-btn adm-btn-ghost adm-btn-sm adm-btn-ai"
+                    data-tip="Gemini (Google) propone tagline e descrizione partendo da titolo, data e ora. Solo i gestori autorizzati possono usarlo."
+                    title="Proponi tagline e descrizione con l'IA">✨ Proponi con IA</button>
+            </div>
             <textarea id="evDescription" rows="3">${esc(ev?.description || '')}</textarea>
         </div>
         <div class="adm-row">
             <div class="adm-group">
-                <label for="evImageSelect">Immagine (galleria)</label>
+                <label for="evImageSelect">Immagine (galleria) <span class="adm-tip" tabindex="0" data-tip="Scegli una foto tra quelle già presenti sul sito. Se selezioni qui, il campo URL a fianco si disattiva.">?</span></label>
                 <select id="evImageSelect">
                     <option value="">— scegli dalla galleria —</option>
                     ${options}
                 </select>
             </div>
             <div class="adm-group">
-                <label for="evImageUrl">oppure URL immagine libero</label>
+                <label for="evImageUrl">oppure URL immagine libero <span class="adm-tip" tabindex="0" data-tip="Incolla il link diretto a un'immagine (https://…). Se compilato, vince sulla scelta dalla galleria.">?</span></label>
                 <input id="evImageUrl" type="url" value="${esc(customUrl)}" placeholder="https://…" ${customUrl ? '' : 'disabled'}>
             </div>
         </div>
         <label class="adm-check">
             <input id="evActive" type="checkbox" ${!isEdit || ev.active !== false ? 'checked' : ''}>
-            Attivo (visibile sul sito)
+            Attivo (visibile sul sito) <span class="adm-tip" tabindex="0" data-tip="Spuntato = l'evento compare sul sito. Senza spunta resta salvato qui ma nascosto ai visitatori.">?</span>
         </label>
+        <div class="adm-live-preview">
+            <span class="adm-preview-label">Anteprima sul sito (si aggiorna mentre scrivi)</span>
+            <div class="event-card adm-preview-card">
+                <img id="evPrevImg" src="images/gallery5.jpg" alt="Anteprima immagine evento">
+                <div class="event-card-body">
+                    <div class="date" id="evPrevDate">— data —</div>
+                    <h3 id="evPrevTitle">Titolo evento</h3>
+                    <p id="evPrevText"></p>
+                </div>
+            </div>
+        </div>
         <div id="evFormErr" class="adm-inline-err" hidden></div>
         <div class="adm-form-actions">
             <button class="adm-btn" type="submit">${isEdit ? 'Salva modifiche' : 'Crea evento'}</button>
@@ -384,13 +400,63 @@ async function startEventsTab() {
             </div>`).join('');
     }
 
+    // Replica fedele di renderEventCard/formatEventDate di events.js:
+    // stessa immagine di fallback (gallery5), stesso formato data, tagline||description.
+    function updateEventPreview() {
+        const prev = panel.querySelector('.adm-live-preview');
+        if (!prev) return; // form non aperto
+        const imgUrl = $('evImageUrl').value.trim() || $('evImageSelect').value || 'images/gallery5.jpg';
+        const img = $('evPrevImg');
+        if (img.getAttribute('src') !== imgUrl) img.src = imgUrl;
+        const dateStr = $('evDate').value;
+        const time = $('evTime').value.trim();
+        let dateTxt = '— data —';
+        if (dateStr) {
+            const d = new Date(dateStr + 'T12:00:00');
+            if (!isNaN(d)) dateTxt = d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) + (time ? ', ore ' + time : '');
+        }
+        $('evPrevDate').textContent = dateTxt;
+        $('evPrevTitle').textContent = $('evTitle').value.trim() || 'Titolo evento';
+        $('evPrevText').textContent = $('evTagline').value.trim() || $('evDescription').value.trim() || '';
+    }
+
     function openForm(ev, id) {
         editingId = id;
         formSlot.innerHTML = eventFormHTML(ev);
+        updateEventPreview();
         panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
+    panel.addEventListener('input', (e) => {
+        if (e.target.closest('#evForm')) updateEventPreview();
+    });
+
+    async function runAiSuggest(aiBtn) {
+        const title = $('evTitle').value.trim();
+        if (!title) { toast('Scrivi almeno il titolo: l’IA ne ha bisogno per proporre il testo.', true); $('evTitle').focus(); return; }
+        aiBtn.disabled = true;
+        const label = aiBtn.textContent;
+        aiBtn.textContent = '⏳ Genero…';
+        try {
+            const fn = httpsCallable(await getFunctionsInstance(), 'suggestEventCopy');
+            const res = await fn({ title, date: $('evDate').value, time: $('evTime').value.trim() });
+            const { tagline, description } = res.data || {};
+            if (description) $('evDescription').value = description;
+            if (tagline && !$('evTagline').value.trim()) $('evTagline').value = tagline;
+            updateEventPreview();
+            toast('Proposta inserita — rivedila e adattala prima di salvare.');
+        } catch (err) {
+            console.error('[admin] suggestEventCopy error:', err);
+            toast('Proposta non riuscita: ' + (err.code || err.message), true);
+        } finally {
+            aiBtn.disabled = false;
+            aiBtn.textContent = label;
+        }
+    }
+
     panel.addEventListener('click', async (e) => {
+        const aiBtn = e.target.closest('#evAiBtn');
+        if (aiBtn) { runAiSuggest(aiBtn); return; }
         const btn = e.target.closest('[data-ev-action]');
         if (!btn) return;
         const action = btn.dataset.evAction;
@@ -423,6 +489,7 @@ async function startEventsTab() {
             else urlInput.disabled = false;
         }
         if (e.target.id === 'evImageUrl' && e.target.value) $('evImageSelect').value = '';
+        if (e.target.closest('#evForm')) updateEventPreview();
     });
 
     panel.addEventListener('submit', async (e) => {

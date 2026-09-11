@@ -21,6 +21,7 @@ const { logger } = require('firebase-functions');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const { BetaAnalyticsDataClient } = require('@google-analytics/data');
+const { GoogleAuth } = require('google-auth-library');
 
 admin.initializeApp();
 
@@ -298,6 +299,94 @@ exports.getGaStats = onCall(
     ]);
 
     return { last7, last30, topPages, topSources, daily, generatedAt: new Date().toISOString() };
+  }
+);
+
+/* ------------------------------------------------------------------ *
+ * suggestEventCopy — bozze di tagline/descrizione evento via Gemini.
+ *
+ * Callable: stessa protezione di getGaStats (assertAdmin + whitelist).
+ * Modello: Gemini 2.5 Flash-Lite su Vertex AI del progetto (location
+ * global, contratto verificato 2026-09-11 con chiamata reale).
+ * Auth: ADC della Compute default SA (roles/aiplatform.user) — nessuna
+ * chiave in codice, niente segreti nuovi. La function gira sul SA
+ * Compute default (nessun serviceAccount esplicito impostato).
+ * ------------------------------------------------------------------ */
+
+const VERTEX_GEMINI_URL =
+  'https://aiplatform.googleapis.com/v1/projects/fonderia-treviso' +
+  '/locations/global/publishers/google/models/gemini-2.5-flash-lite:generateContent';
+
+exports.suggestEventCopy = onCall(
+  { region: 'europe-west1', maxInstances: 2 },
+  async (req) => {
+    await assertAdmin(req);
+
+    const title = String((req.data && req.data.title) || '').trim().slice(0, 200);
+    const date = String((req.data && req.data.date) || '').trim().slice(0, 20);
+    const time = String((req.data && req.data.time) || '').trim().slice(0, 40);
+    if (!title) {
+      throw new HttpsError('invalid-argument', 'Serve almeno il titolo dell’evento.');
+    }
+
+    const prompt =
+      'Sei il copywriter di Fonderia Treviso: birreria e cocktail bar con cucina,\n' +
+      'musica live e DJ set, in Via Fonderia 113 a Treviso. Tono caldo, energico e\n' +
+      'concreto, frasi brevi, niente frasi pubblicitarie stucchevoli. Lingua: italiano.\n\n' +
+      'Evento da descrivere:\n' +
+      '- Titolo: ' + title + '\n' +
+      (date ? '- Data: ' + date + '\n' : '') +
+      (time ? '- Ora: ' + time + '\n' : '') +
+      '\nRispondi ESATTAMENTE in questo formato, senza altro testo:\n' +
+      'TAGLINE: <una frase breve, max 90 caratteri, sottotitolo che incuriosisce>\n' +
+      'DESCRIZIONE: <3 frasi, max 400 caratteri: cosa succede, atmosfera, invito a prenotare>';
+
+    try {
+      const auth = new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
+      const client = await auth.getClient();
+      const { token } = await client.getAccessToken();
+
+      const resp = await fetch(VERTEX_GEMINI_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.9, maxOutputTokens: 500 },
+        }),
+      });
+
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => '');
+        logger.error('Vertex generateContent non-OK', { status: resp.status, body: body.slice(0, 500) });
+        throw new HttpsError('internal', 'Il modello non ha risposto (HTTP ' + resp.status + '). Riprova tra poco.');
+      }
+
+      const json = await resp.json();
+      const text = (((json.candidates || [])[0] || {}).content || {}).parts
+        ? json.candidates[0].content.parts.map((p) => p.text || '').join('')
+        : '';
+
+      const taglineMatch = text.match(/TAGLINE:\s*(.+)/);
+      const descMatch = text.match(/DESCRIZIONE:\s*([\s\S]+)/);
+      const tagline = taglineMatch ? taglineMatch[1].trim().replace(/^"|"$/g, '').slice(0, 140) : '';
+      const description = descMatch
+        ? descMatch[1].trim().slice(0, 600)
+        : text.trim().slice(0, 600); // fallback: formato inatteso → tutto il testo come descrizione
+
+      if (!description) {
+        throw new HttpsError('internal', 'Il modello ha risposto vuoto. Riprova.');
+      }
+
+      logger.info('suggestEventCopy OK', { email: req.auth.token.email, title });
+      return { tagline, description };
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      logger.error('suggestEventCopy FALLITO', { error: String(err && err.message || err) });
+      throw new HttpsError('internal', 'Generazione non riuscita. Riprova tra poco.');
+    }
   }
 );
 

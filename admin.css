@@ -912,3 +912,102 @@
  * sopra il login (bug "Caricamento infinito", 2026-09-11).
  * ---------------------------------------------------------- */
 [hidden] { display: none !important; }
+
+/* ---------- Tooltip di campo (accessibili, hover+focus) ---------- */
+.adm-tip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    margin-left: 6px;
+    border-radius: 50%;
+    border: 1px solid rgba(196, 93, 38, 0.45);
+    color: var(--color-primary);
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: 0;
+    cursor: help;
+    vertical-align: 1px;
+}
+
+.adm-tip::after,
+.adm-btn-ai::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    z-index: 60;
+    width: max-content;
+    max-width: 260px;
+    padding: 8px 12px;
+    background: #1d1916;
+    border: 1px solid rgba(196, 93, 38, 0.4);
+    border-radius: 8px;
+    color: var(--color-text-muted);
+    font-size: 0.76rem;
+    font-weight: 400;
+    line-height: 1.45;
+    text-transform: none;
+    letter-spacing: 0.01em;
+    white-space: normal;
+    text-align: left;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.55);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(3px);
+    transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
+    pointer-events: none;
+}
+
+.adm-tip:hover::after,
+.adm-tip:focus-visible::after,
+.adm-btn-ai:hover::after,
+.adm-btn-ai:focus-visible::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.adm-check .adm-tip { margin-left: 8px; }
+
+/* ---------- Riga label + bottone IA ---------- */
+.adm-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.adm-label-row label { margin-bottom: 0; }
+
+.adm-btn-ai {
+    position: relative;
+    margin-left: auto;
+}
+
+/* ---------- Anteprima live della card evento ---------- */
+.adm-live-preview {
+    border: 1px dashed rgba(240, 235, 227, 0.14);
+    border-radius: 12px;
+    padding: 14px 16px 18px;
+    background: rgba(6, 6, 6, 0.35);
+}
+
+.adm-preview-label {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin-bottom: 12px;
+}
+
+.adm-preview-card {
+    max-width: 360px;
+    pointer-events: none; /* anteprima: niente hover/click, replica solo il look */
+}
