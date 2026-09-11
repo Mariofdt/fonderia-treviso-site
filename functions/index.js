@@ -554,10 +554,11 @@ exports.onNewsletterCreated = onDocumentCreated(
  * ------------------------------------------------------------------ */
 
 const crypto = require('crypto');
-// FieldValue via subpath: in emulatore il runtime di firebase-tools stubba il
-// modulo 'firebase-admin' e admin.firestore.FieldValue risulta undefined
-// (admin.firestore() funziona comunque). Il subpath non viene intercettato.
-const { FieldValue } = require('firebase-admin/firestore');
+// FieldValue/FieldPath via subpath: in emulatore il runtime di firebase-tools
+// stubba il modulo 'firebase-admin' e admin.firestore.FieldValue/FieldPath
+// risultano undefined (admin.firestore() funziona comunque). Il subpath non
+// viene intercettato.
+const { FieldValue, FieldPath } = require('firebase-admin/firestore');
 
 const TESSERA_BASE = SITE_URL + '/tessera.html?t=';
 const PHONE_RE = /^[+0-9][0-9 .()-]{5,24}$/;
@@ -679,6 +680,77 @@ exports.registerMember = onCall(
       token,
       refCode,
       tesseraUrl: TESSERA_BASE + token,
+    };
+  }
+);
+
+exports.getTessera = onCall(
+  { region: 'europe-west1', maxInstances: 2 },
+  async (req) => {
+    const member = await assertMember(req.data && req.data.token);
+    const db = admin.firestore();
+
+    // Rinfresca i badge (idempotente) e rileggi
+    const newBadges = await evaluateBadges(member.ref, member.data);
+    const data = newBadges.length
+      ? { ...member.data, badges: [...(member.data.badges || []), ...newBadges] }
+      : member.data;
+
+    const [claimsSnap, promosSnap, badgesSnap] = await Promise.all([
+      db.collection('claims').where('memberId', '==', member.id).get(),
+      db.collection('promos').where('active', '==', true).get(),
+      (data.badges || []).length
+        ? db.collection('badges').where(FieldPath.documentId(), 'in', data.badges.slice(0, 30)).get()
+        : Promise.resolve(null),
+    ]);
+
+    const promoById = {};
+    promosSnap.forEach((d) => {
+      promoById[d.id] = d.data();
+    });
+    // Promo di claim non più attive: leggi puntualmente
+    const claims = [];
+    for (const d of claimsSnap.docs) {
+      const c = d.data();
+      let promo = promoById[c.promoId];
+      if (!promo) {
+        const pDoc = await db.collection('promos').doc(c.promoId).get();
+        promo = pDoc.exists ? pDoc.data() : {};
+      }
+      claims.push({
+        promoId: c.promoId,
+        promoTitle: promo.title || '',
+        prizeLabel: promo.prizeLabel || '',
+        status: c.status,
+        qrUrl: c.status === 'issued'
+          ? SITE_URL + '/riscatta.html?c=' + c.code
+          : null,
+        redeemedAt: c.redeemedAt && c.redeemedAt.toDate ? c.redeemedAt.toDate().toISOString() : null,
+      });
+    }
+
+    const badges = [];
+    if (badgesSnap) {
+      badgesSnap.forEach((d) => {
+        const b = d.data();
+        badges.push({ id: d.id, name: b.name, icon: b.icon, description: b.description || '' });
+      });
+    }
+
+    const activePromos = [];
+    promosSnap.forEach((d) => {
+      const p = d.data();
+      activePromos.push({ id: d.id, title: p.title, prizeLabel: p.prizeLabel, actionType: p.actionType });
+    });
+
+    return {
+      memberId: member.id,
+      name: data.name,
+      refCode: data.refCode,
+      referralCount: data.referralCount || 0,
+      badges,
+      claims,
+      activePromos,
     };
   }
 );
