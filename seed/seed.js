@@ -88,6 +88,18 @@ async function main() {
   );
   console.log('OK popups/popup-apertura-2026');
 
+  // 4) Gamification: config iniziale (idempotente). staffPin: placeholder,
+  // da cambiare subito dall'admin (tab Promozioni → Impostazioni).
+  const gamRef = db.collection('config').doc('gamification');
+  const gamSnap = await gamRef.get();
+  if (!gamSnap.exists) {
+    await gamRef.set({
+      staffPin: '0000',
+      prizeOptions: ['Drink omaggio', 'Fritto omaggio', 'Ingresso omaggio'],
+    });
+    console.log('config/gamification creato (cambia il PIN in admin!)');
+  }
+
   console.log('Seed completato (idempotente: rieseguibile senza duplicati).');
 }
 

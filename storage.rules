@@ -25,6 +25,16 @@ service firebase.storage {
       allow delete: if isAdminUser();
     }
 
+    // Screenshot delle prove promo (gamification). Upload anonimo consentito
+    // ma inerte: submitClaim accetta solo path col memberId del token chiamante.
+    match /claims-inbox/{memberId}/{fileName} {
+      allow read: if false; // le prove le vede solo lo staff (function/admin SDK)
+      allow create: if request.resource != null
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow update, delete: if false;
+    }
+
     // default deny su tutto il resto del bucket
     match /{allPaths=**} {
       allow read, write: if false;
