@@ -1154,6 +1154,11 @@ exports.redeemQr = onCall(
       const staffPin = cfg.exists ? String(cfg.data().staffPin || '') : '';
       const pin = String((req.data && req.data.pin) || '');
       if (!staffPin || pin !== staffPin) {
+        // Log SENZA il valore del PIN ne' il codice claim: serve per
+        // la metrica logs-based di alert su brute-force del PIN.
+        logger.warn('redeemQr: PIN staff errato', {
+          region: 'europe-west1',
+        });
         throw new HttpsError('permission-denied', 'PIN staff errato.');
       }
       authorizedVia = 'pin';
