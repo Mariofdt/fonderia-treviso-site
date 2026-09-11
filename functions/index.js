@@ -838,11 +838,29 @@ exports.submitClaim = onCall(
   { region: 'europe-west1', maxInstances: 2, timeoutSeconds: 60 },
   async (req) => {
     const member = await assertMember(req.data && req.data.token);
+
+    // Rate limit orario SUBITO dopo l'autenticazione: OGNI invocazione conta
+    // (anche guards/promo/mime che falliscono), altrimenti loop su oggetti
+    // non-immagine nel proprio claims-inbox sarebbero gratuiti e illimitati.
+    const m = member.data;
+    const hourKey = new Date().toISOString().slice(0, 13); // YYYY-MM-DDTHH
+    const rate = m.claimsRate || {};
+    if (rate.hour === hourKey && rate.count >= MAX_CLAIMS_PER_HOUR) {
+      throw new HttpsError('resource-exhausted', 'Troppe richieste: riprova tra un\'ora.');
+    }
+    await member.ref.update({
+      claimsRate: { hour: hourKey, count: rate.hour === hourKey ? (rate.count || 0) + 1 : 1 },
+    });
+
     const promoId = String((req.data && req.data.promoId) || '').trim();
     const imagePath = String((req.data && req.data.imagePath) || '').trim();
     const db = admin.firestore();
 
     if (!promoId) throw new HttpsError('invalid-argument', 'Promozione mancante.');
+    // '.' romperebbe il field-path uploadAttempts.<promoId> e il docId del claim
+    if (promoId.includes('.')) {
+      throw new HttpsError('invalid-argument', 'Identificativo promozione non valido.');
+    }
     if (!imagePath.startsWith('claims-inbox/' + member.id + '/') || imagePath.includes('..')) {
       throw new HttpsError('permission-denied', 'Percorso immagine non valido.');
     }
@@ -871,50 +889,52 @@ exports.submitClaim = onCall(
         'Hai già una richiesta per questa promozione. Controlla la tua tessera.');
     }
 
-    // Rate limit orario + retry limit
-    const m = member.data;
-    const hourKey = new Date().toISOString().slice(0, 13); // YYYY-MM-DDTHH
+    // Retry limit (tentativi immagine reali; il rate orario è già contato sopra)
     const attempts = (m.uploadAttempts || {})[promoId] || 0;
     if (attempts >= MAX_UPLOAD_ATTEMPTS) {
       throw new HttpsError('resource-exhausted',
         'Hai esaurito i tentativi per questa promozione: passa al banco.');
     }
-    const rate = m.claimsRate || {};
-    if (rate.hour === hourKey && rate.count >= MAX_CLAIMS_PER_HOUR) {
-      throw new HttpsError('resource-exhausted', 'Troppe richieste: riprova tra un\'ora.');
-    }
 
-    // Scarica l'immagine da Storage e valida con Gemini vision
+    // Checklist vuota/mancante → fail-closed: niente validazione IA senza
+    // vincoli (un modello senza checklist potrebbe approvare qualsiasi
+    // immagine) → direttamente in revisione manuale staff.
+    const checklist = String(promo.aiChecklist || '').trim();
     let verdict = null;
-    try {
-      const bucket = admin.storage().bucket();
-      const file = bucket.file(imagePath);
-      const [meta] = await file.getMetadata();
-      const mime = String(meta.contentType || 'image/jpeg');
-      if (!mime.startsWith('image/')) {
-        throw new HttpsError('invalid-argument', 'Il file caricato non è un\'immagine.');
+    let aiFallbackNote = 'Validazione automatica non disponibile';
+    if (!checklist) {
+      aiFallbackNote = 'Checklist IA mancante: revisione manuale';
+    } else {
+      // Scarica l'immagine da Storage e valida con Gemini vision
+      try {
+        const bucket = admin.storage().bucket();
+        const file = bucket.file(imagePath);
+        const [meta] = await file.getMetadata();
+        const mime = String(meta.contentType || 'image/jpeg');
+        if (!mime.startsWith('image/')) {
+          throw new HttpsError('invalid-argument', 'Il file caricato non è un\'immagine.');
+        }
+        const [buf] = await file.download();
+        verdict = await geminiValidateImage(buf.toString('base64'), mime, checklist);
+      } catch (err) {
+        if (err instanceof HttpsError) throw err;
+        logger.error('submitClaim: validazione impossibile', { error: String(err && err.message || err) });
+        verdict = null;
       }
-      const [buf] = await file.download();
-      verdict = await geminiValidateImage(buf.toString('base64'), mime, promo.aiChecklist || '');
-    } catch (err) {
-      if (err instanceof HttpsError) throw err;
-      logger.error('submitClaim: validazione impossibile', { error: String(err && err.message || err) });
-      verdict = null;
     }
 
-    // Aggiorna contatori anti-abuso (sempre, prima dell'esito)
+    // Conta il tentativo immagine (sempre, prima dell'esito)
     await member.ref.update({
       ['uploadAttempts.' + promoId]: FieldValue.increment(1),
-      claimsRate: { hour: hourKey, count: rate.hour === hourKey ? (rate.count || 0) + 1 : 1 },
     });
 
     if (verdict === null) {
-      // IA indisponibile / immagine illeggibile → approvazione manuale staff
+      // IA indisponibile / immagine illeggibile / checklist mancante → staff
       await claimRef.set({
         memberId: member.id, promoId,
         code: randomToken(), status: 'pending_review',
         screenshotPath: imagePath, aiModel: 'gemini-2.5-flash-lite',
-        aiNote: 'Validazione automatica non disponibile',
+        aiNote: aiFallbackNote,
         createdAt: FieldValue.serverTimestamp(),
         redeemedAt: null, redeemedVia: null, redeemedBy: null,
       });
