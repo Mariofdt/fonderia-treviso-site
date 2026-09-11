@@ -6,13 +6,13 @@
  */
 
 import { getAuthInstance, getDb, getStorageInstance } from './firebase-init.js';
-import { onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, signOut }
-    from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, signInWithEmailAndPassword, signOut }
+    from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import { collection, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot,
          query, orderBy, limit, serverTimestamp, increment }
-    from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+    from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { ref as storageRef, uploadBytes, getDownloadURL }
-    from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
+    from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js';
 
 const EMAIL_LS_KEY = 'fond.emailForSignIn';
 const LOCAL_IMAGES = ['images/hero-bg.jpg', 'images/birre.jpg', ...Array.from({ length: 11 }, (_, i) => `images/gallery${i + 1}.jpg`)];
@@ -140,16 +140,28 @@ function showLogin(state, email) {
     els.login.innerHTML = `
         <div class="adm-login-card">
             <h2>Area Gestionale</h2>
-            <p class="adm-login-sub">Inserisci la tua email: riceverai un link di accesso, valido solo per i gestori autorizzati.</p>
+            <p class="adm-login-sub">Inserisci email e password per entrare.
+            Se lasci la password vuota ti inviamo un link di accesso via email.
+            L'accesso è riservato ai gestori autorizzati.</p>
             <form id="admLoginForm" class="booking-form" novalidate>
                 <div class="adm-group">
                     <label for="admEmail">Email</label>
                     <input id="admEmail" type="email" required autocomplete="email" placeholder="nome@esempio.it">
                 </div>
-                <button class="adm-btn" type="submit">Inviami il link di accesso</button>
+                <div class="adm-group">
+                    <label for="admPassword">Password <span class="adm-optional">(opzionale)</span></label>
+                    <input id="admPassword" type="password" autocomplete="current-password" placeholder="Lascia vuoto per il link via email">
+                </div>
+                <button class="adm-btn" type="submit" data-label-empty="Inviami il link di accesso">Accedi</button>
                 <div id="admLoginErr" class="adm-inline-err" hidden></div>
             </form>
         </div>`;
+    // Il bottone cambia etichetta in base alla presenza della password
+    const pwInput = $('admPassword');
+    const submitBtn = els.login.querySelector('button[type="submit"]');
+    pwInput.addEventListener('input', () => {
+        submitBtn.textContent = pwInput.value ? 'Accedi' : submitBtn.dataset.labelEmpty;
+    });
     $('admLoginForm').addEventListener('submit', onLoginSubmit);
 }
 
@@ -169,6 +181,7 @@ function showUnauthorized(email) {
 async function onLoginSubmit(e) {
     e.preventDefault();
     const email = $('admEmail').value.trim();
+    const password = $('admPassword') ? $('admPassword').value : '';
     const errBox = $('admLoginErr');
     const btn = e.target.querySelector('button[type="submit"]');
     errBox.hidden = true;
@@ -176,6 +189,11 @@ async function onLoginSubmit(e) {
     btn.disabled = true;
     try {
         const auth = await getAuthInstance();
+        if (password) {
+            // Login con password: la whitelist viene controllata da onAuthStateChanged
+            await signInWithEmailAndPassword(auth, email, password);
+            return; // la shell si apre dal listener; il bottone non serve più
+        }
         await sendSignInLinkToEmail(auth, email, {
             url: location.origin + location.pathname,
             handleCodeInApp: true,
@@ -183,8 +201,16 @@ async function onLoginSubmit(e) {
         localStorage.setItem(EMAIL_LS_KEY, email);
         showLogin('sent', email);
     } catch (err) {
-        console.error('[admin] sendSignInLinkToEmail error:', err);
-        errBox.textContent = 'Invio non riuscito (' + (err.code || err.message) + '). Controlla la connessione e riprova.';
+        console.error('[admin] login error:', err);
+        if (err && (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found')) {
+            errBox.textContent = 'Email o password non corrette.';
+        } else if (err && err.code === 'auth/too-many-requests') {
+            errBox.textContent = 'Troppi tentativi. Attendi qualche minuto e riprova.';
+        } else if (password) {
+            errBox.textContent = 'Accesso non riuscito (' + (err.code || err.message) + ').';
+        } else {
+            errBox.textContent = 'Invio non riuscito (' + (err.code || err.message) + '). Controlla la connessione e riprova.';
+        }
         errBox.hidden = false;
         btn.disabled = false;
     }
