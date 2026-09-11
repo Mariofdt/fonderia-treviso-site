@@ -170,6 +170,17 @@
     margin: 10px 0 0;
 }
 
+.promo-notice {
+    font-size: 14px;
+    line-height: 1.45;
+    color: #ffc357;
+    border: 1px solid rgba(255, 195, 87, 0.4);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 0 0 14px;
+    background: rgba(255, 195, 87, 0.08);
+}
+
 .promo-btn {
     width: 100%;
     margin-top: 18px;

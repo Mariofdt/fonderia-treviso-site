@@ -38,10 +38,32 @@ function savedTessera() {
   }
 }
 
+// Una sola tessera per device: salvandone una nuova si evincono le altre.
 function saveTessera(token, memberId) {
+  clearTesseraKeys();
   try {
     localStorage.setItem(LS_PREFIX + token, JSON.stringify({ token, memberId }));
   } catch { /* storage pieno/privato: la tessera resta raggiungibile via link */ }
+}
+
+function clearTesseraKeys() {
+  try {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith(LS_PREFIX))
+      .forEach(k => localStorage.removeItem(k));
+  } catch { /* noop */ }
+}
+
+// Errori che provano che il token salvato non esiste piu' lato server
+// (assertMember lancia 'unauthenticated'). Se li riceviamo da una callable
+// che usa il token, la tessera e' spazzatura: va cancellata, non riletta.
+// N.B. permission-denied in submitClaim e' il guard del path immagine, NON
+// token invalido → non invalideremmo mai la tessera per quello.
+// Errori di rete/offline (unavailable, internal, deadline-exceeded) NON
+// entrano qui: la tessera resta e l'utente riprova.
+function isInvalidTokenError(err) {
+  const code = (err && err.code) || '';
+  return code.includes('unauthenticated') || code.includes('not-found');
 }
 
 async function callable(name) {
@@ -125,8 +147,8 @@ function errorMessage(err, fallback) {
   if (code.includes('resource-exhausted')) return msg || 'Troppe richieste: riprova più tardi.';
   if (code.includes('invalid-argument')) return msg || 'Controlla i dati inseriti e riprova.';
   if (code.includes('failed-precondition')) return msg || 'Questa promozione non è più attiva.';
-  if (code.includes('permission-denied') || code.includes('unauthenticated')) {
-    return 'La sessione della tessera non è valida: ricarica la pagina.';
+  if (code.includes('permission-denied')) {
+    return msg || 'Operazione non consentita: riprova.';
   }
   return fallback;
 }
@@ -163,12 +185,13 @@ function renderHome(promos, refCode) {
 // ----------------------------------------
 // Stato REGISTRA: nome + telefono + consenso
 // ----------------------------------------
-function renderRegister(promo, refCode, headingOverride) {
+function renderRegister(promo, refCode, headingOverride, notice) {
   const heading = headingOverride
     || (promo ? promo.title : 'Diventa socio della Fonderia');
   app.innerHTML = `
     ${badgeHtml('Tesseramento')}
     <h1 class="promo-title">${esc(heading)}</h1>
+    ${notice ? `<p class="promo-notice" role="alert">${esc(notice)}</p>` : ''}
     ${prizeHtml(promo)}
     ${descHtml(promo)}
     <form id="registerForm" class="promo-form" novalidate>
@@ -232,6 +255,25 @@ function bindRegister(promo, refCode, onDone) {
 // ----------------------------------------
 // Stato PARTECIPA: upload della prova (social_share / visit / photo…)
 // ----------------------------------------
+function startRegister(promo, refCode, notice) {
+  renderRegister(promo, refCode, undefined, notice);
+  bindRegister(promo, refCode, (saved) => routeWithTessera(promo, refCode, saved));
+}
+
+// Dopo registrazione o con tessera valida: referral → INVITA, altrimenti PARTECIPA.
+function routeWithTessera(promo, refCode, tessera) {
+  if (!promo || promo.actionType === 'referral') renderInvite(promo, tessera, refCode);
+  else renderParticipateThenBind(promo, tessera, refCode);
+}
+
+// Tessera invalida lato server: cancella tutte le chiavi e torna a REGISTRA
+// con spiegazione (mai loop: la chiave guasta non viene piu' riletta).
+function invalidTokenRecovery(promo, refCode) {
+  clearTesseraKeys();
+  startRegister(promo, refCode,
+    'La tessera salvata su questo dispositivo non è più valida: registrati di nuovo.');
+}
+
 function renderParticipate(promo) {
   app.innerHTML = `
     ${badgeHtml('Partecipa')}
@@ -240,10 +282,10 @@ function renderParticipate(promo) {
     ${descHtml(promo)}
     <div class="promo-upload">
       <label class="promo-drop" for="proofInput">
-        <span class="promo-drop-cta">Scatta o scegli la foto della prova</span>
-        <span class="promo-drop-hint">Screenshot o foto, max 5 MB</span>
+        <span class="promo-drop-cta">Carica lo screenshot della prova</span>
+        <span class="promo-drop-hint">Screenshot o foto dalla galleria, max 5 MB</span>
       </label>
-      <input id="proofInput" type="file" accept="image/*" capture="environment" hidden>
+      <input id="proofInput" type="file" accept="image/*" hidden>
       <p class="promo-file" id="proofName" hidden></p>
       ${formError('claimError')}
       <button type="button" class="btn btn-primary promo-btn" id="claimSubmit" disabled>Invia la prova</button>
@@ -253,15 +295,29 @@ function renderParticipate(promo) {
 
 // Un solo tentativo per click: bottone disabilitato subito, errori mostrati
 // senza retry automatico (ogni chiamata submitClaim consuma credito orario).
-function bindParticipate(promo, tessera) {
+function bindParticipate(promo, tessera, refCode) {
   const input = document.getElementById('proofInput');
   const nameEl = document.getElementById('proofName');
   const btn = document.getElementById('claimSubmit');
   let picked = null;
+  // Path del file correntemente selezionato: UN solo UUID per file.
+  // Se il submit fallisce (es. rete) il retry riusa lo stesso path e, se
+  // l'upload e' gia' riuscito, non carica un secondo oggetto: niente orfani
+  // eterni in claims-inbox.
+  let pending = null; // { file, path, uploaded }
+
+  function pathFor(file) {
+    if (!pending || pending.file !== file) {
+      const ext = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic' })[file.type] || 'jpg';
+      pending = { file, path: 'claims-inbox/' + tessera.memberId + '/' + crypto.randomUUID() + '.' + ext, uploaded: false };
+    }
+    return pending;
+  }
 
   input.addEventListener('change', () => {
     setError('claimError', '');
     picked = input.files && input.files[0] ? input.files[0] : null;
+    pending = null;
     if (!picked) {
       nameEl.hidden = true;
       btn.disabled = true;
@@ -290,24 +346,31 @@ function bindParticipate(promo, tessera) {
     input.disabled = true;
     btn.textContent = 'Caricamento…';
     try {
-      // Nome file UNICO (uuid), mai deterministico, mai path traversal.
-      const ext = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic' })[picked.type] || 'jpg';
-      const path = 'claims-inbox/' + tessera.memberId + '/' + crypto.randomUUID() + '.' + ext;
+      const entry = pathFor(picked);
       const storage = await getStorageInstance();
+      if (!entry.uploaded) {
+        await uploadBytes(storageRef(storage, entry.path), picked);
+        entry.uploaded = true;
+      }
       btn.textContent = 'Verifica in corso…';
-      await uploadBytes(storageRef(storage, path), picked);
       const res = await (await callable('submitClaim'))({
-        token: tessera.token, promoId: promo.id, imagePath: path,
+        token: tessera.token, promoId: promo.id, imagePath: entry.path,
       });
       renderStatus(res.data || {});
     } catch (err) {
-      const msg = errorMessage(err, 'Invio non riuscito: controlla la connessione e riprova.');
+      // Token non piu' valido lato server: pulisci e torna a REGISTRA.
+      // Errori di rete/server: la tessera RESTA e si puo' riprovare.
+      if (isInvalidTokenError(err)) {
+        invalidTokenRecovery(promo, refCode);
+        return;
+      }
       // Tentativi esauriti → percorso obbligato: banco (uploadAttempts non si resetta)
       if ((err && err.code || '').includes('resource-exhausted') && /tentativi/i.test(err && err.message || '')) {
         renderForcedDesk(promo);
         return;
       }
-      setError('claimError', msg);
+      setError('claimError', errorMessage(err,
+        'Invio non riuscito: controlla la connessione e riprova (i tentativi sono limitati: max 10 richieste all’ora).'));
       btn.textContent = 'Invia la prova';
       input.disabled = false;
       btn.disabled = !picked;
@@ -346,7 +409,7 @@ function renderStatus(data) {
     ${badgeHtml('Prova non valida')}
     <h1 class="promo-title">Non ci siamo</h1>
     <p class="promo-desc">${esc(reason || 'La prova non soddisfa i requisiti della promozione.')}</p>
-    <p class="promo-desc">Puoi riprovare con una foto più chiara — oppure passa al banco: lo staff ti aiuta a ritirare il premio.</p>
+    <p class="promo-desc">Puoi riprovare con una foto più chiara — occhio, i tentativi sono limitati (max 10 richieste all’ora) — oppure passa al banco: lo staff ti aiuta a ritirare il premio.</p>
     <button type="button" class="btn btn-primary promo-btn" id="retryBtn">Riprova</button>
     ${tesseraUrl ? `<a class="promo-link" href="${esc(tesseraUrl)}">La mia tessera</a>` : ''}`;
   const retry = document.getElementById('retryBtn');
@@ -373,25 +436,32 @@ function renderInviteShell() {
     <p class="promo-desc">Caricamento del tuo link personale…</p>`;
 }
 
-async function renderInvite(promo, tessera) {
+async function renderInvite(promo, tessera, refCode) {
   renderInviteShell();
   let data;
   try {
     const res = await (await callable('getTessera'))({ token: tessera.token });
     data = res.data || {};
   } catch (err) {
+    // Token invalido → pulisci e REGISTRA; rete/server → messaggio + reload manuale
+    if (isInvalidTokenError(err)) {
+      invalidTokenRecovery(promo, refCode);
+      return;
+    }
     app.innerHTML = `
       ${badgeHtml('Invita gli amici')}
       <h1 class="promo-title">Ops</h1>
-      <p class="promo-desc">${esc(errorMessage(err, 'Non riesco a recuperare la tua tessera: ricarica la pagina.'))}</p>`;
+      <p class="promo-desc">${esc(errorMessage(err, 'Non riesco a recuperare la tua tessera: controlla la connessione e riprova.'))}</p>
+      <button type="button" class="btn btn-primary promo-btn" id="reloadBtn">Riprova</button>`;
+    document.getElementById('reloadBtn').addEventListener('click', () => window.location.reload());
     return;
   }
-  const refCode = data.refCode || '';
+  const myRefCode = data.refCode || '';
   const count = data.referralCount || 0;
   const target = promo && promo.refTarget ? promo.refTarget : 0;
   const shareUrl = location.origin + '/promo.html'
     + (promo ? '?p=' + encodeURIComponent(promo.id) + '&' : '?')
-    + 'ref=' + encodeURIComponent(refCode);
+    + 'ref=' + encodeURIComponent(myRefCode);
   const progress = target ? `<p class="promo-progress">Inviti registrati: <strong>${count}</strong> su ${target}</p>` : '';
   app.innerHTML = `
     ${badgeHtml('Invita gli amici')}
@@ -473,7 +543,6 @@ async function init() {
   }
 
   const tessera = savedTessera();
-  const isInviteFlow = !promo || promo.actionType === 'referral';
 
   if (!tessera) {
     // Registrazione (con eventuale refCode dell'invitante). Per la home senza
@@ -482,24 +551,16 @@ async function init() {
       renderHome(promos, refCode);
       return;
     }
-    renderRegister(promo, refCode);
-    bindRegister(promo, refCode, (saved) => {
-      if (isInviteFlow) renderInvite(promo, saved);
-      else renderParticipateThenBind(promo, saved);
-    });
+    startRegister(promo, refCode);
     return;
   }
 
-  if (isInviteFlow) {
-    renderInvite(promo, tessera);
-    return;
-  }
-  renderParticipateThenBind(promo, tessera);
+  routeWithTessera(promo, refCode, tessera);
 }
 
-function renderParticipateThenBind(promo, tessera) {
+function renderParticipateThenBind(promo, tessera, refCode) {
   renderParticipate(promo);
-  bindParticipate(promo, tessera);
+  bindParticipate(promo, tessera, refCode);
 }
 
 function renderHomeInto(holder, promos, refCode) {
