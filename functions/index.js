@@ -1119,17 +1119,35 @@ exports.redeemQr = onCall(
   { region: 'europe-west1', maxInstances: 2 },
   async (req) => {
     const email = req.auth && req.auth.token && req.auth.token.email;
-    let authorized = false;
+    // Canale di autorizzazione reale (fix R1-M1): un socio loggato NON admin
+    // che usa il PIN del banco NON deve risultare riscattato 'da lui' —
+    // l'email entra nell'audit solo se assertAdmin passa.
+    let authorizedVia = null; // 'admin' | 'pin'
     if (email) {
-      try { await assertAdmin(req); authorized = true; } catch { /* non admin: PIN sotto */ }
+      try {
+        await assertAdmin(req);
+        authorizedVia = 'admin';
+      } catch (err) {
+        // Non admin → PIN sotto. Se l'errore non è il "non sei admin"
+        // atteso (es. read Firestore transitoria su config/admin), lo
+        // logghiamo: mai l'email, mai oggetti request (fix R1-M4).
+        if (!(err instanceof HttpsError) ||
+            (err.code !== 'unauthenticated' && err.code !== 'permission-denied')) {
+          logger.warn('redeemQr: assertAdmin fallito, fallback PIN', {
+            code: err && err.code ? String(err.code) : 'unknown',
+            message: String(err && err.message || err).slice(0, 120),
+          });
+        }
+      }
     }
-    if (!authorized) {
+    if (!authorizedVia) {
       const cfg = await admin.firestore().doc('config/gamification').get();
       const staffPin = cfg.exists ? String(cfg.data().staffPin || '') : '';
       const pin = String((req.data && req.data.pin) || '');
       if (!staffPin || pin !== staffPin) {
         throw new HttpsError('permission-denied', 'PIN staff errato.');
       }
+      authorizedVia = 'pin';
     }
 
     const claimDoc = await findClaimByCode(req.data && req.data.code);
@@ -1153,22 +1171,51 @@ exports.redeemQr = onCall(
     // Transazione: bruciatura atomica, doppio tap sicuro. Se uno scan
     // concorrente ha già bruciato, la ri-lettura dentro la transazione lo
     // intercetta: nessuna seconda scrittura, nessun doppio premio.
+    // L'esito della guardia esce dal callback tramite flag (niente errori
+    // come control flow fuori dalla tx): così il doppio scan riceve lo
+    // shape already-redeemed informativo invece di un HttpsError anonimo
+    // (fix R1-M2). Guardia exists: se il doc sparisce tra lookup e tx
+    // evitiamo il TypeError da fresh.data() su snapshot vuoto (fix R1-M3).
     // FieldValue dal subpath (ruling): admin.firestore.FieldValue in
     // emulatore risulta undefined.
+    let txOutcome = 'ok'; // 'ok' | 'missing' | 'not-issued'
     await admin.firestore().runTransaction(async (tx) => {
       const fresh = await tx.get(claimDoc.ref);
-      if (fresh.data().status !== 'issued') {
-        throw new HttpsError('failed-precondition', 'Premio già riscattato da un altro accesso.');
-      }
+      if (!fresh.exists) { txOutcome = 'missing'; return; }
+      if (fresh.data().status !== 'issued') { txOutcome = 'not-issued'; return; }
       tx.update(claimDoc.ref, {
         status: 'redeemed',
         redeemedAt: FieldValue.serverTimestamp(),
-        redeemedVia: email ? 'staff_app' : 'pin',
-        redeemedBy: email || null,
+        redeemedVia: authorizedVia === 'admin' ? 'admin' : 'pin',
+        redeemedBy: authorizedVia === 'admin' ? email : null,
       });
     });
 
-    logger.info('redeemQr OK', { claimId: claimDoc.id, via: email ? 'staff' : 'pin' });
+    if (txOutcome === 'missing') {
+      throw new HttpsError('not-found', 'Codice QR non trovato.');
+    }
+    if (txOutcome === 'not-issued') {
+      // Scan concorrente: ri-leggiamo per dire allo staff CHI ha riscattato,
+      // quando e via quale canale (stesso shape del doppio scan sequenziale).
+      const reread = await claimDoc.ref.get();
+      if (reread.exists && reread.data().status === 'redeemed') {
+        const rc = reread.data();
+        const payload = await claimPublicPayload(reread);
+        logger.info('redeemQr: bruciatura concorrente, claim già riscattato', { claimId: claimDoc.id });
+        return {
+          ok: false,
+          alreadyRedeemed: true,
+          prizeLabel: payload.prizeLabel,
+          memberName: payload.memberName,
+          redeemedAt: rc.redeemedAt && rc.redeemedAt.toDate ? rc.redeemedAt.toDate().toISOString() : null,
+          redeemedVia: rc.redeemedVia || null,
+          redeemedBy: rc.redeemedBy || null,
+        };
+      }
+      throw new HttpsError('failed-precondition', 'Questo premio non è più riscattabile.');
+    }
+
+    logger.info('redeemQr OK', { claimId: claimDoc.id, via: authorizedVia });
     const payload = await claimPublicPayload(claimDoc);
     return { ok: true, prizeLabel: payload.prizeLabel, memberName: payload.memberName };
   }
