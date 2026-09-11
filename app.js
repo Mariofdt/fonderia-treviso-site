@@ -1,3 +1,9 @@
+// === CONFIG CANALE WHATSAPP BROADCAST ===
+// TODO: quando il canale WhatsApp è stato creato, sostituire WA_CHANNEL_URL
+// con il link ufficiale (formato https://whatsapp.com/channel/XXXXXXXXXXXXXXX)
+// Interim: il bottone apre la chat con richiesta precompilata di iscrizione.
+const WA_CHANNEL_URL = 'https://wa.me/393204137183?text=' + encodeURIComponent('Ciao! 📣 Voglio iscrivermi al canale WhatsApp della Fonderia per ricevere eventi e serate.');
+
 // ========================================
 // FONDERIA TREVISO - Main JavaScript
 // ========================================
@@ -8,7 +14,17 @@ document.addEventListener('DOMContentLoaded', () => {
     initScrollAnimations();
     initSmoothScroll();
     initGalleryLightbox();
+    initWaChannelCta();
 });
+
+// Apply the WhatsApp channel URL to every [data-wa-channel] element
+function initWaChannelCta() {
+    document.querySelectorAll('[data-wa-channel]').forEach(el => {
+        el.setAttribute('href', WA_CHANNEL_URL);
+        el.setAttribute('target', '_blank');
+        el.setAttribute('rel', 'noopener');
+    });
+}
 
 function initLoader() {
     const loader = document.getElementById('loader');
@@ -266,10 +282,6 @@ function initGalleryLightbox() {
         if (e.key === 'ArrowLeft') prevImage();
     });
 }
-
-// ----------------------------------------
-    }
-});
 
 // ========================================
 // INSTAGRAM CAROUSEL

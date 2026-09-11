@@ -9,7 +9,8 @@
       ".omc/**",
       "node_modules/**",
       "**/.*",
-      "**/*.md"
+      "**/*.md",
+      "videos/hero-video-1080.mp4"
     ]
   }
 }

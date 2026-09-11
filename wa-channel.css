@@ -1,0 +1,101 @@
+/* ========================================
+   WHATSAPP BROADCAST CHANNEL CTA BANNER
+   ======================================== */
+
+.wa-channel-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 40px;
+    background:
+        radial-gradient(ellipse at 85% 50%, rgba(37, 211, 102, 0.10), transparent 60%),
+        var(--color-surface);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 35%, transparent);
+    border-radius: 16px;
+    padding: 48px 56px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 60px rgba(37, 211, 102, 0.06);
+}
+
+/* Accent glow line on the top edge */
+.wa-channel-banner::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #25d366, transparent);
+    opacity: 0.6;
+}
+
+.wa-channel-text {
+    max-width: 620px;
+}
+
+.wa-channel-text h3 {
+    font-family: var(--font-heading);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--color-white);
+    margin: 12px 0 16px;
+}
+
+.wa-channel-text p {
+    color: var(--color-text-muted);
+    font-size: 1rem;
+    line-height: 1.7;
+}
+
+.wa-channel-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    padding: 18px 36px;
+    background: #25d366;
+    color: #fff;
+    border: 1px solid #25d366;
+    border-radius: 50px;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 25px rgba(37, 211, 102, 0.25);
+}
+
+.wa-channel-cta:hover {
+    background: #128c7e;
+    border-color: #128c7e;
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px rgba(37, 211, 102, 0.4);
+}
+
+.wa-channel-cta svg {
+    width: 22px;
+    height: 22px;
+    fill: currentColor;
+    stroke: none;
+}
+
+@media (max-width: 768px) {
+    .wa-channel-banner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 28px;
+        padding: 36px 28px;
+    }
+
+    .wa-channel-text h3 {
+        font-size: 1.6rem;
+    }
+
+    .wa-channel-cta {
+        width: 100%;
+        justify-content: center;
+    }
+}
