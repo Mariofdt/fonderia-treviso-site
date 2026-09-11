@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Fonderia — Riscatto premio</title>
+    <link rel="icon" type="image/svg+xml" href="images/logo.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* ========================================
+           FONDERIA TREVISO - Riscatto premio al banco (staff)
+           Mobile-first (390px), token da styles.css, stessi
+           pattern visivi di tessera/promo. Inline perche' la
+           pagina e' piccola e autonoma (brief: solo html+js).
+           ======================================== */
+
+        .riscatta-body {
+            min-height: 100vh;
+            margin: 0;
+            font-family: var(--font-heading);
+            background:
+                radial-gradient(60% 40% at 50% -10%, var(--color-fire-glow), transparent 70%),
+                radial-gradient(40% 30% at 85% 110%, rgba(255, 107, 26, 0.15), transparent 70%),
+                var(--color-bg);
+            color: var(--color-text);
+            display: flex;
+            justify-content: center;
+        }
+
+        .riscatta-main {
+            width: 100%;
+            max-width: 460px;
+            padding: 32px 20px 48px;
+            box-sizing: border-box;
+        }
+
+        .riscatta-header {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 24px;
+        }
+
+        .riscatta-logo {
+            height: 56px;
+            width: auto;
+            filter: drop-shadow(0 0 18px var(--color-fire-glow));
+        }
+
+        .riscatta-app {
+            background: var(--color-surface);
+            border: 1px solid rgba(255, 107, 26, 0.18);
+            border-radius: 16px;
+            padding: 28px 22px;
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55), 0 0 32px var(--color-fire-glow);
+        }
+
+        .riscatta-loading {
+            text-align: center;
+            color: var(--color-text-muted);
+            margin: 24px 0;
+            animation: riscattaPulse 1.4s ease-in-out infinite;
+        }
+
+        @keyframes riscattaPulse {
+            0%, 100% { opacity: 0.45; }
+            50% { opacity: 1; }
+        }
+
+        .riscatta-badge {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2.5px;
+            color: var(--color-accent);
+            border: 1px solid var(--color-accent);
+            border-radius: 999px;
+            padding: 6px 14px;
+            margin: 0 0 14px;
+            box-shadow: 0 0 16px var(--color-fire-glow);
+        }
+
+        .riscatta-badge-warn {
+            color: #ffc357;
+            border-color: rgba(255, 195, 87, 0.6);
+            box-shadow: 0 0 16px rgba(255, 195, 87, 0.25);
+        }
+
+        .riscatta-badge-ok {
+            color: #57d98a;
+            border-color: rgba(87, 217, 138, 0.6);
+            box-shadow: 0 0 16px rgba(87, 217, 138, 0.25);
+        }
+
+        .riscatta-title {
+            font-family: 'Fraunces', var(--font-heading);
+            font-style: italic;
+            font-weight: 600;
+            font-size: 30px;
+            line-height: 1.15;
+            margin: 0 0 8px;
+            color: var(--color-white);
+        }
+
+        .riscatta-desc {
+            font-size: 15px;
+            line-height: 1.55;
+            color: var(--color-text-muted);
+            margin: 0 0 16px;
+        }
+
+        /* ---------- Dati premio (peek) ---------- */
+
+        .riscatta-prize {
+            font-size: 32px;
+            font-weight: 700;
+            line-height: 1.15;
+            color: var(--color-white);
+            margin: 14px 0 6px;
+            word-break: break-word;
+        }
+
+        .riscatta-member {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--color-text);
+            margin: 0 0 4px;
+        }
+
+        .riscatta-promo {
+            font-size: 13px;
+            color: var(--color-text-muted);
+            margin: 0 0 18px;
+        }
+
+        /* ---------- Form ---------- */
+
+        .riscatta-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--color-text-muted);
+            margin: 12px 0 6px;
+        }
+
+        .riscatta-input {
+            width: 100%;
+            box-sizing: border-box;
+            font-family: var(--font-heading);
+            font-size: 16px; /* evita lo zoom automatico iOS */
+            color: var(--color-text);
+            background: var(--color-bg-alt);
+            border: 1px solid rgba(240, 235, 227, 0.16);
+            border-radius: 8px;
+            padding: 13px 14px;
+            transition: border-color 0.3s var(--transition-smooth), box-shadow 0.3s var(--transition-smooth);
+        }
+
+        .riscatta-input:focus {
+            outline: none;
+            border-color: var(--color-accent);
+            box-shadow: 0 0 0 2px rgba(255, 107, 26, 0.25), 0 0 20px var(--color-fire-glow);
+        }
+
+        .riscatta-input-code {
+            font-family: 'Space Grotesk', ui-monospace, monospace;
+            letter-spacing: 1.5px;
+        }
+
+        .riscatta-error {
+            font-size: 13px;
+            color: #ff5d5d;
+            margin: 10px 0 0;
+        }
+
+        .riscatta-btn {
+            width: 100%;
+            margin-top: 18px;
+            text-align: center;
+            display: block;
+            box-sizing: border-box;
+        }
+
+        .riscatta-btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .riscatta-link {
+            display: inline-block;
+            margin-top: 20px;
+            font-size: 13px;
+            color: var(--color-text-muted);
+            text-decoration: none;
+            background: none;
+            border: none;
+            font-family: inherit;
+            cursor: pointer;
+            padding: 0;
+            transition: color 0.3s ease;
+        }
+
+        .riscatta-link:hover {
+            color: var(--color-accent);
+        }
+
+        /* ---------- Schermata SUCCESSO (leggibile al banco) ---------- */
+
+        .riscatta-result {
+            text-align: center;
+            padding: 8px 0 4px;
+        }
+
+        .riscatta-result-icon {
+            font-size: 56px;
+            line-height: 1;
+            margin: 6px 0 12px;
+        }
+
+        .riscatta-result-title {
+            font-size: 26px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 0 0 16px;
+        }
+
+        .riscatta-result-ok .riscatta-result-title {
+            color: #57d98a;
+        }
+
+        .riscatta-result-warn .riscatta-result-title {
+            color: #ffc357;
+        }
+
+        /* Premio gigante: si deve leggere a distanza dal banco */
+        .riscatta-result-prize {
+            font-size: 38px;
+            font-weight: 700;
+            line-height: 1.1;
+            color: var(--color-white);
+            margin: 0 0 10px;
+            word-break: break-word;
+        }
+
+        .riscatta-result-member {
+            font-size: 20px;
+            color: var(--color-text);
+            margin: 0 0 6px;
+        }
+
+        .riscatta-result-detail {
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--color-text-muted);
+            margin: 12px 0 0;
+        }
+
+        /* Pannello warning "gia' riscattato": ovvio a colpo d'occhio
+           che qualcuno ri-presenta un QR usato */
+        .riscatta-warn-panel {
+            border: 2px solid rgba(255, 195, 87, 0.6);
+            background: rgba(255, 195, 87, 0.08);
+            border-radius: 12px;
+            padding: 16px 14px;
+            margin: 14px 0;
+        }
+
+        .riscatta-warn-panel p {
+            margin: 6px 0 0;
+        }
+
+        .riscatta-no-handout {
+            font-size: 15px;
+            font-weight: 700;
+            color: #ffc357;
+            margin: 14px 0 0;
+        }
+
+        @media (min-width: 720px) {
+            .riscatta-main {
+                max-width: 520px;
+                padding-top: 48px;
+            }
+
+            .riscatta-app {
+                padding: 36px 32px;
+            }
+
+            .riscatta-title {
+                font-size: 36px;
+            }
+
+            .riscatta-prize {
+                font-size: 36px;
+            }
+
+            .riscatta-result-prize {
+                font-size: 44px;
+            }
+        }
+    </style>
+    <script src="firebase-config.js?v=2"></script>
+    <script type="module" src="riscatta.js?v=1"></script>
+</head>
+<body class="riscatta-body">
+    <main class="riscatta-main">
+        <header class="riscatta-header">
+            <img src="images/logo.svg" alt="Fonderia Treviso" class="riscatta-logo">
+        </header>
+        <div id="riscattaApp" class="riscatta-app">
+            <p class="riscatta-loading">Caricamento…</p>
+        </div>
+    </main>
+</body>
+</html>
