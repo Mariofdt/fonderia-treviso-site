@@ -71,9 +71,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="admin.css?v=10">
+    <link rel="stylesheet" href="admin.css?v=11">
     <script src="firebase-config.js?v=2"></script>
-    <script type="module" src="admin.js?v=10"></script>
+    <script type="module" src="admin.js?v=11"></script>
 </head>
 <body class="admin-body">
 
@@ -96,6 +96,7 @@
                 </div>
             </div>
             <nav class="adm-tabs" id="admTabs">
+                <button class="adm-tab" data-tab="marketing" type="button">Marketing</button>
                 <button class="adm-tab active" data-tab="events" type="button">Eventi</button>
                 <button class="adm-tab" data-tab="popups" type="button">Popup</button>
                 <button class="adm-tab" data-tab="bookings" type="button">Prenotazioni</button>
@@ -109,6 +110,7 @@
         </header>
 
         <main class="adm-main">
+            <section id="tab-marketing" class="adm-panel" hidden></section>
             <section id="tab-events" class="adm-panel"></section>
             <section id="tab-popups" class="adm-panel" hidden></section>
             <section id="tab-bookings" class="adm-panel" hidden></section>

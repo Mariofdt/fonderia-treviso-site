@@ -1469,3 +1469,237 @@ select.adm-input-sm {
         box-sizing: border-box;
     }
 }
+
+/* ------------------------------ tab marketing + wizard ------------------------------ */
+
+.mk-hero {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 18px;
+    margin-bottom: 14px;
+    border: 1px dashed rgba(217, 164, 65, 0.5);
+    border-radius: 14px;
+    background: rgba(217, 164, 65, 0.06);
+}
+
+.mk-hero-btn {
+    font-size: 1.05rem;
+    padding: 14px 26px;
+    border-radius: 12px;
+}
+
+.mk-item {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.mk-item-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.mk-assets {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.mk-asset {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    overflow: hidden;
+    background: #1c1915;
+}
+
+.mk-asset img,
+.mk-asset video {
+    width: 100%;
+    height: 110px;
+    object-fit: cover;
+    display: block;
+}
+
+.mk-asset-label {
+    display: block;
+    font-size: 0.74rem;
+    color: rgba(255, 255, 255, 0.55);
+    padding: 6px 8px 0;
+}
+
+.mk-asset .adm-gal-actions {
+    padding: 6px 8px 8px;
+}
+
+/* wizard modale */
+
+.mk-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: rgba(10, 8, 6, 0.72);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 4vh 16px;
+    overflow-y: auto;
+}
+
+.mk-modal {
+    width: 100%;
+    max-width: 860px;
+    background: #1e1a15;
+    border: 1px solid rgba(217, 164, 65, 0.35);
+    border-radius: 16px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+.mk-modal-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mk-modal-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.mk-steps {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.mk-step-dot {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.mk-step-dot.active {
+    color: #d9a441;
+    font-weight: 700;
+}
+
+.mk-step-dot.done {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.mk-modal-body {
+    padding: 18px 20px;
+}
+
+.mk-modal-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 20px 18px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mk-step-title {
+    font-size: 1.02rem;
+    font-weight: 600;
+    margin: 0 0 14px;
+}
+
+.mk-type-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.mk-type-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    text-align: left;
+    padding: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    transition: border-color 0.15s, transform 0.15s;
+}
+
+.mk-type-card:hover {
+    border-color: #d9a441;
+    transform: translateY(-2px);
+}
+
+.mk-type-icon {
+    font-size: 1.6rem;
+}
+
+.mk-type-card span:last-child {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.mk-chosen {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px;
+    margin: 12px 0;
+    border: 1px solid rgba(217, 164, 65, 0.3);
+    border-radius: 10px;
+    background: rgba(217, 164, 65, 0.05);
+}
+
+.mk-chosen img {
+    width: 96px;
+    height: 96px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.mk-summary {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 8px 18px;
+    margin: 0 0 14px;
+}
+
+.mk-summary dt {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.85rem;
+}
+
+.mk-summary dd {
+    margin: 0;
+}
+
+@media (max-width: 640px) {
+    .mk-overlay {
+        padding: 0;
+    }
+    .mk-modal {
+        min-height: 100vh;
+        border-radius: 0;
+        border: none;
+    }
+    .mk-summary {
+        grid-template-columns: 1fr;
+        gap: 2px 0;
+    }
+    .mk-summary dd {
+        margin-bottom: 8px;
+    }
+}

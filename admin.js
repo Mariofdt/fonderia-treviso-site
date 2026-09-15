@@ -47,10 +47,16 @@ const els = {
         stats: $('tab-stats'),
         users: $('tab-users'),
         social: $('tab-social'),
+        marketing: $('tab-marketing'),
     },
 };
 
-let unsubscribe = { events: null, popups: null, bookings: null, newsletter: null, promos: null, badges: null, claims: null, users: null, social: null, campaigns: null };
+let unsubscribe = { events: null, popups: null, bookings: null, newsletter: null, promos: null, badges: null, claims: null, users: null, social: null, campaigns: null, marketing: null };
+
+// Ponte tab Marketing → tab Social: la tab marketing ha bisogno dell'editor
+// media (che vive nella closure di startSocialTab) per aggiungere logo/testi
+// agli asset del wizard. Popolato da startSocialTab all'avvio della shell.
+const marketingBridge = { openEditor: null };
 let bookingsCache = [];
 let bookingsFilter = 'all';
 let toastTimer = null;
@@ -375,12 +381,13 @@ async function initShell(user, authz) {
     startBadgesTab();
     startStatsTab();
     startSocialTab();
+    startMarketingTab();
     if (authz.role === 'owner') startUsersTab();
 }
 
 function stopAll() {
     Object.values(unsubscribe).forEach((fn) => { if (fn) fn(); });
-    unsubscribe = { events: null, popups: null, bookings: null, newsletter: null, promos: null, badges: null, claims: null, users: null, social: null, campaigns: null };
+    unsubscribe = { events: null, popups: null, bookings: null, newsletter: null, promos: null, badges: null, claims: null, users: null, social: null, campaigns: null, marketing: null, mkEvents: null, mkPopups: null, mkPosts: null, mkCampaigns: null };
 }
 
 /* ------------------------------------ tab: eventi ------------------------------------ */
@@ -2774,18 +2781,30 @@ async function startSocialTab() {
     const ED_EFFECTS = { none: 'Nessuno', fade: 'Comparsa', rise: 'Salita dal basso', pop: 'Zoom-pop', type: 'Macchina da scrivere' };
     const ED_FONTS = { display: '"Space Grotesk", sans-serif', body: '"Inter", sans-serif' };
 
-    let ed = null; // sessione: { baseUrl, baseKind, returnView, media, W, H, layers, selId, drag, preview, saving, exporting }
+    let ed = null; // sessione: { baseUrl, baseKind, returnView, onSaved, media, W, H, layers, selId, drag, preview, saving, exporting }
 
-    function openEditor(url, kind, returnView) {
+    // onSaved(asset) opzionale: usata dalla tab Marketing (wizard) per ricevere
+    // subito l'asset editato anche se il post non è ancora stato salvato.
+    // returnView '__marketing' = alla chiusura si torna alla tab Marketing.
+    function openEditor(url, kind, returnView, onSaved) {
         edCleanup();
         ed = {
             baseUrl: url, baseKind: kind, returnView: returnView || 'create',
+            onSaved: typeof onSaved === 'function' ? onSaved : null,
             media: null, W: 0, H: 0, layers: [], selId: null,
             drag: null, preview: null, saving: false, exporting: false,
         };
         view = 'editor';
         render();
     }
+
+    // Ponte per la tab Marketing: apre l'editor qui (tab Social) e al Chiudi
+    // riporta l'utente alla tab Marketing con l'asset salvato consegnato via callback.
+    marketingBridge.openEditor = (url, kind, onSaved) => {
+        const tabBtn = els.tabs.querySelector('.adm-tab[data-tab="social"]');
+        if (tabBtn) tabBtn.click();
+        openEditor(url, kind, '__marketing', onSaved);
+    };
 
     function edCleanup() {
         if (!ed) return;
@@ -3050,7 +3069,9 @@ async function startSocialTab() {
         const blob = await new Promise((res, rej) =>
             out.toBlob((b) => (b ? res(b) : rej(new Error('export vuoto'))), 'image/png'));
         const saved = await edUpload(blob, 'image/png', '.png', st);
-        pendingAssets.push({ kind: 'image', label: 'grafica editor (png)', url: saved.url, path: saved.path });
+        const asset = { kind: 'image', label: 'grafica editor (png)', url: saved.url, path: saved.path };
+        pendingAssets.push(asset);
+        if (ed.onSaved) { try { ed.onSaved(asset); } catch (e) { console.error('[admin] onSaved editor:', e); } }
         st.textContent = 'PNG salvato ✓ in galleria (si collega al post quando lo salvi).';
         toast('Grafica salvata in galleria.');
     }
@@ -3095,7 +3116,9 @@ async function startSocialTab() {
         const blob = new Blob(chunks, { type: 'video/webm' });
         if (!blob.size) throw new Error('registrazione vuota');
         const saved = await edUpload(blob, 'video/webm', '.webm', st);
-        pendingAssets.push({ kind: 'video', label: 'video editato (webm)', url: saved.url, path: saved.path });
+        const asset = { kind: 'video', label: 'video editato (webm)', url: saved.url, path: saved.path };
+        pendingAssets.push(asset);
+        if (ed.onSaved) { try { ed.onSaved(asset); } catch (e) { console.error('[admin] onSaved editor:', e); } }
         st.textContent = 'Video salvato ✓ in galleria (si collega al post quando lo salvi). Nota: formato webm.';
         toast('Video salvato in galleria.');
         edDrawFinal();
@@ -3708,8 +3731,15 @@ async function startSocialTab() {
             } else if (action === 'close-editor') {
                 const rv = ed ? ed.returnView : 'create';
                 edCleanup();
-                view = rv;
-                render();
+                if (rv === '__marketing') {
+                    view = 'galleria'; // vista di riserva sensata se si torna a Social
+                    render();
+                    const mkTab = els.tabs.querySelector('.adm-tab[data-tab="marketing"]');
+                    if (mkTab) mkTab.click();
+                } else {
+                    view = rv;
+                    render();
+                }
             } else if (action === 'gfx-delete') {
                 const a = gfxAssets && gfxAssets.find((x) => x.id === id);
                 if (!a) return;
@@ -3803,6 +3833,913 @@ async function startSocialTab() {
             panel.innerHTML = '<div class="adm-inline-err">Errore nel caricamento dei post social.</div>';
         }
     );
+
+    render();
+}
+
+/* ------------------------------------ tab: marketing ------------------------------------ */
+
+// Superficie UNICA di generazione (richiesta Mario 15/09/26): un grande bottone
+// "Generazione grafiche" apre un wizard multi-step (tipo attivita' → contenuto →
+// grafica → riepilogo) che orchestra i pezzi esistenti (immagine IA Gemini, reel
+// webm, video Veo, editor logo/testi via marketingBridge) e salva in events/,
+// popups/ o socialPosts/ con gli stessi payload delle tab storiche. Le tab
+// Eventi/Popup/Social restano per la gestione avanzata. Sotto al bottone la
+// lista unificata di tutto cio' che e' stato generato, tutto modificabile.
+async function startMarketingTab() {
+    const panel = els.panels.marketing;
+    if (!panel) return;
+    const db = await getDb();
+
+    let mkEvents = [];
+    let mkPopups = [];
+    let mkPosts = [];
+    let mkCampaigns = [];
+    let mkGfx = []; // libreria asset grafici (logo/sticker)
+    let filter = 'all'; // all|post|evento|popup|media
+    let wiz = null; // sessione wizard, vedi mkNewWizard()
+
+    /* ------------------------------ lista unificata ------------------------------ */
+
+    function mkDateStr(v) {
+        if (!v) return '';
+        const d = v.toDate ? v.toDate() : new Date(v);
+        return isNaN(d) ? '' : d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+    }
+
+    function campaignName(id) {
+        const c = mkCampaigns.find((x) => x.id === id);
+        return c ? c.data.name : '';
+    }
+
+    function mkShellHTML() {
+        return `
+        <div class="adm-panel-head">
+            <div>
+                <h2>Marketing</h2>
+                <p class="adm-panel-lead">Genera grafiche e contenuti per <strong>social, eventi e popup</strong> da un unico punto: il pulsante qui sotto apre un percorso guidato passo passo. Sotto trovi <strong>tutto ciò che hai generato</strong>, sempre modificabile. (Le tab Eventi/Popup/Social restano disponibili per la gestione avanzata.)</p>
+            </div>
+        </div>
+        <div class="mk-hero">
+            <button class="adm-btn mk-hero-btn" data-mk-action="open-wizard" type="button">✨ Generazione grafiche</button>
+            <span class="adm-cell-muted">Post social, reel e video IA, immagini eventi, sfondi popup — con logo e testi animati.</span>
+        </div>
+        <div class="adm-subtabs">
+            ${[['all', 'Tutto'], ['post', '📱 Post social'], ['evento', '🎪 Eventi'], ['popup', '🪟 Popup'], ['media', '🖼 Media']]
+                .map(([k, l]) => `<button class="adm-subtab${filter === k ? ' active' : ''}" data-mk-action="filter" data-filter="${k}" type="button">${l}</button>`).join('')}
+        </div>
+        <div id="mkList"></div>
+        <div id="mkWizardHost"></div>`;
+    }
+
+    function mkPostCellHTML(p) {
+        const d = p.data;
+        const assets = (d.assets || []).map((a) => `
+            <div class="mk-asset">
+                ${a.kind === 'video'
+                    ? `<video src="${esc(a.url)}" muted playsinline preload="metadata"></video>`
+                    : `<img src="${esc(a.url)}" alt="" loading="lazy">`}
+                <span class="mk-asset-label">${esc(a.label || (a.kind === 'video' ? 'video' : 'immagine'))}</span>
+                <div class="adm-gal-actions">
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="edit-media" data-url="${esc(a.url)}" data-kind="${a.kind === 'video' ? 'video' : 'image'}" type="button">✏️ Editor</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="download" data-url="${esc(a.url)}" data-label="${esc(a.label || 'media')}" type="button">Scarica</button>
+                </div>
+            </div>`).join('');
+        return `
+        <div class="mk-item" data-type="post">
+            <div class="mk-item-head">
+                <span class="adm-chip">📱 Social</span>
+                <strong>${esc(d.title || '(senza titolo)')}</strong>
+                <span class="adm-cell-muted">${mkDateStr(d.scheduledFor)}${d.campaignId ? ' · ' + esc(campaignName(d.campaignId)) : ''} · ${esc(SOC_STATUSES[d.status] || d.status || 'Bozza')}</span>
+            </div>
+            ${assets ? `<div class="mk-assets">${assets}</div>` : '<div class="adm-cell-muted">Nessun asset collegato.</div>'}
+            <div class="adm-gal-actions">
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="edit-item" data-type="post" data-id="${esc(p.id)}" type="button">Modifica nel wizard</button>
+                <button class="adm-btn adm-btn-danger adm-btn-sm" data-mk-action="del-item" data-type="post" data-id="${esc(p.id)}" data-label="${esc(d.title || '')}" type="button">Elimina</button>
+            </div>
+        </div>`;
+    }
+
+    function mkEventCellHTML(ev) {
+        const d = ev.data;
+        return `
+        <div class="mk-item" data-type="evento">
+            <div class="mk-item-head">
+                <span class="adm-chip">🎪 Evento</span>
+                <strong>${esc(d.title || '')}</strong>
+                <span class="adm-cell-muted">${mkDateStr(d.date)}${d.time ? ' ' + esc(d.time) : ''} · ${d.active ? 'attivo' : 'spento'}</span>
+            </div>
+            ${d.image ? `<div class="mk-assets"><div class="mk-asset"><img src="${esc(d.image)}" alt="" loading="lazy"><span class="mk-asset-label">immagine evento</span>
+                <div class="adm-gal-actions">
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="edit-media" data-url="${esc(d.image)}" data-kind="image" type="button">✏️ Editor</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="download" data-url="${esc(d.image)}" data-label="${esc(d.title || 'evento')}" type="button">Scarica</button>
+                </div></div></div>` : ''}
+            <div class="adm-gal-actions">
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="edit-item" data-type="evento" data-id="${esc(ev.id)}" type="button">Modifica nel wizard</button>
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="toggle-active" data-type="evento" data-id="${esc(ev.id)}" type="button">${d.active ? 'Spegni' : 'Accendi'}</button>
+                <button class="adm-btn adm-btn-danger adm-btn-sm" data-mk-action="del-item" data-type="evento" data-id="${esc(ev.id)}" data-label="${esc(d.title || '')}" type="button">Elimina</button>
+            </div>
+        </div>`;
+    }
+
+    function mkPopupCellHTML(pp) {
+        const d = pp.data;
+        return `
+        <div class="mk-item" data-type="popup">
+            <div class="mk-item-head">
+                <span class="adm-chip">🪟 Popup</span>
+                <strong>${esc(d.title || '')}</strong>
+                <span class="adm-cell-muted">${mkDateStr(d.startDate)} → ${mkDateStr(d.endDate)} · ${d.active ? 'attivo' : 'spento'}</span>
+            </div>
+            ${d.imageUrl ? `<div class="mk-assets"><div class="mk-asset"><img src="${esc(d.imageUrl)}" alt="" loading="lazy"><span class="mk-asset-label">sfondo popup</span>
+                <div class="adm-gal-actions">
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="edit-media" data-url="${esc(d.imageUrl)}" data-kind="image" type="button">✏️ Editor</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="download" data-url="${esc(d.imageUrl)}" data-label="${esc(d.title || 'popup')}" type="button">Scarica</button>
+                </div></div></div>` : ''}
+            <div class="adm-gal-actions">
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="edit-item" data-type="popup" data-id="${esc(pp.id)}" type="button">Modifica nel wizard</button>
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="toggle-active" data-type="popup" data-id="${esc(pp.id)}" type="button">${d.active ? 'Spegni' : 'Accendi'}</button>
+                <button class="adm-btn adm-btn-danger adm-btn-sm" data-mk-action="del-item" data-type="popup" data-id="${esc(pp.id)}" data-label="${esc(d.title || '')}" type="button">Elimina</button>
+            </div>
+        </div>`;
+    }
+
+    // Tutti i media prodotti, deduplicati per URL: asset dei post + libreria grafica.
+    function mkMediaCellsHTML() {
+        const seen = new Set();
+        const cells = [];
+        mkPosts.forEach((p) => (p.data.assets || []).forEach((a) => {
+            if (seen.has(a.url)) return;
+            seen.add(a.url);
+            cells.push({ label: (a.label || 'media') + ' · ' + (p.data.title || ''), url: a.url, kind: a.kind === 'video' ? 'video' : 'image' });
+        }));
+        mkGfx.forEach((g) => {
+            if (seen.has(g.data.url)) return;
+            seen.add(g.data.url);
+            cells.push({ label: '🧩 libreria: ' + (g.data.name || ''), url: g.data.url, kind: 'image' });
+        });
+        if (!cells.length) return '<div class="adm-empty">Ancora nessun media: genera qualcosa con il pulsante qui sopra.</div>';
+        return `<div class="adm-gallery">${cells.map((c) => `
+            <div class="adm-gal-cell">
+                ${c.kind === 'video' ? `<video src="${esc(c.url)}" muted playsinline preload="metadata"></video>` : `<img src="${esc(c.url)}" alt="" loading="lazy">`}
+                <div class="adm-gal-label">${esc(c.label)}</div>
+                <div class="adm-gal-actions">
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="edit-media" data-url="${esc(c.url)}" data-kind="${c.kind}" type="button">✏️ Editor</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="download" data-url="${esc(c.url)}" data-label="${esc(c.label.replace(/^🧩 libreria: /, 'gfx-'))}" type="button">Scarica</button>
+                </div>
+            </div>`).join('')}</div>`;
+    }
+
+    function mkListHTML() {
+        const parts = [];
+        if (filter === 'all' || filter === 'post') {
+            parts.push('<h3 class="adm-subhead">📱 Post social (' + mkPosts.length + ')</h3>');
+            parts.push(mkPosts.length ? mkPosts.map(mkPostCellHTML).join('') : '<div class="adm-empty">Nessun post: crealo dal pulsante Generazione grafiche.</div>');
+        }
+        if (filter === 'all' || filter === 'evento') {
+            parts.push('<h3 class="adm-subhead">🎪 Eventi (' + mkEvents.length + ')</h3>');
+            parts.push(mkEvents.length ? mkEvents.map(mkEventCellHTML).join('') : '<div class="adm-empty">Nessun evento.</div>');
+        }
+        if (filter === 'all' || filter === 'popup') {
+            parts.push('<h3 class="adm-subhead">🪟 Popup (' + mkPopups.length + ')</h3>');
+            parts.push(mkPopups.length ? mkPopups.map(mkPopupCellHTML).join('') : '<div class="adm-empty">Nessun popup.</div>');
+        }
+        if (filter === 'all' || filter === 'media') {
+            parts.push('<h3 class="adm-subhead">🖼 Tutti i media</h3>');
+            parts.push(mkMediaCellsHTML());
+        }
+        return parts.join('');
+    }
+
+    function mkRenderList() {
+        const host = $('mkList');
+        if (host) host.innerHTML = mkListHTML();
+    }
+
+    function render() {
+        panel.innerHTML = mkShellHTML();
+        mkRenderList();
+        if (wiz) mkPaintWizard();
+    }
+
+    /* ------------------------------ wizard multi-step ------------------------------ */
+
+    // Sessione wizard. step: 1 tipo → 2 contenuto → 3 grafica → 4 riepilogo.
+    // type: 'post' | 'evento' | 'popup'. editId valorizzato = modifica.
+    function mkNewWizard(prefill) {
+        return {
+            step: 1, type: null, editId: null, statusLine: '',
+            title: '', brief: '', campaignId: '', newCampaign: '', platforms: ['ig', 'fb'], scheduled: '',
+            evTagline: '', evDate: '', evTime: '', evDesc: '', evActive: true,
+            popBody: '', popStart: '', popEnd: '', popCtaType: 'booking', popBookingType: 'cena', popEventTitle: '', popActive: true,
+            imageUrl: '', assets: [],
+            ...prefill,
+        };
+    }
+
+    function mkToInputDate(v) {
+        if (!v) return '';
+        const d = v.toDate ? v.toDate() : new Date(v);
+        if (isNaN(d)) return '';
+        const p = (n) => String(n).padStart(2, '0');
+        return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    }
+
+    function mkOpenWizard(type, editId) {
+        const w = mkNewWizard();
+        if (type) {
+            w.type = type;
+            w.step = 2;
+        }
+        if (editId && type === 'post') {
+            const p = mkPosts.find((x) => x.id === editId);
+            if (!p) { toast('Post non trovato (forse eliminato).', true); return; }
+            const d = p.data;
+            w.editId = editId;
+            w.title = d.title || '';
+            w.brief = (d.copy && (d.copy.ig || d.copy.fb || d.copy.tt)) || d.brief || '';
+            w.campaignId = d.campaignId || '';
+            w.platforms = (d.platforms && d.platforms.length) ? d.platforms.slice() : ['ig', 'fb'];
+            w.scheduled = d.scheduledFor || '';
+            w.imageUrl = d.baseImageUrl || '';
+            w.assets = (d.assets || []).slice();
+        } else if (editId && type === 'evento') {
+            const ev = mkEvents.find((x) => x.id === editId);
+            if (!ev) { toast('Evento non trovato.', true); return; }
+            const d = ev.data;
+            w.editId = editId;
+            w.title = d.title || '';
+            w.evTagline = d.tagline || '';
+            w.evDate = mkToInputDate(d.date);
+            w.evTime = d.time || '';
+            w.evDesc = d.description || '';
+            w.evActive = d.active !== false;
+            w.imageUrl = d.image || '';
+        } else if (editId && type === 'popup') {
+            const pp = mkPopups.find((x) => x.id === editId);
+            if (!pp) { toast('Popup non trovato.', true); return; }
+            const d = pp.data;
+            w.editId = editId;
+            w.title = d.title || '';
+            w.popBody = d.body || '';
+            w.popStart = mkToInputDate(d.startDate);
+            w.popEnd = mkToInputDate(d.endDate);
+            w.popCtaType = d.ctaType || 'booking';
+            w.popBookingType = d.ctaBookingType || 'cena';
+            w.popEventTitle = d.eventTitle || '';
+            w.popActive = d.active !== false;
+            w.imageUrl = d.imageUrl || '';
+        }
+        wiz = w;
+        render();
+    }
+
+    function mkCloseWizard() {
+        wiz = null;
+        render();
+    }
+
+    // Raccoglie i valori dei campi dello step corrente prima di cambiare step
+    // (il repainting distrugge il DOM, quindi nulla si perde solo se leggiamo qui).
+    function mkHarvestStep() {
+        if (!wiz) return;
+        const q = (id) => $(id);
+        if (wiz.step === 2 && wiz.type === 'post') {
+            if (q('mkPostTitle')) {
+                wiz.title = q('mkPostTitle').value.trim();
+                wiz.brief = q('mkPostBrief').value.trim();
+                wiz.campaignId = q('mkPostCampaign').value;
+                wiz.newCampaign = q('mkNewCampaign').value.trim();
+                wiz.platforms = Array.from(panel.querySelectorAll('.mk-plat:checked')).map((c) => c.value);
+                wiz.scheduled = q('mkPostScheduled').value;
+            }
+        } else if (wiz.step === 2 && wiz.type === 'evento') {
+            if (q('mkEvTitle')) {
+                wiz.title = q('mkEvTitle').value.trim();
+                wiz.evTagline = q('mkEvTagline').value.trim();
+                wiz.evDate = q('mkEvDate').value;
+                wiz.evTime = q('mkEvTime').value.trim();
+                wiz.evDesc = q('mkEvDesc').value.trim();
+                wiz.evActive = q('mkEvActive').checked;
+            }
+        } else if (wiz.step === 2 && wiz.type === 'popup') {
+            if (q('mkPopTitle')) {
+                wiz.title = q('mkPopTitle').value.trim();
+                wiz.popBody = q('mkPopBody').value.trim();
+                wiz.popStart = q('mkPopStart').value;
+                wiz.popEnd = q('mkPopEnd').value;
+                wiz.popCtaType = (panel.querySelector('input[name="mkPopCta"]:checked') || {}).value || 'booking';
+                wiz.popBookingType = q('mkPopBookingType').value;
+                wiz.popEventTitle = q('mkPopEventTitle').value.trim();
+                wiz.popActive = q('mkPopActive').checked;
+            }
+        } else if (wiz.step === 3) {
+            if (q('mkAiPrompt')) wiz.aiPrompt = q('mkAiPrompt').value;
+            if (q('mkVeoPrompt')) wiz.veoPrompt = q('mkVeoPrompt').value;
+        }
+    }
+
+    function mkValidateStep2() {
+        if (wiz.type === 'post') {
+            if (wiz.title.length < 3) return 'Dai un titolo interno al post (almeno 3 caratteri).';
+        } else if (wiz.type === 'evento') {
+            if (!wiz.title) return 'Il titolo è obbligatorio.';
+            if (!wiz.evDate || isNaN(new Date(wiz.evDate + 'T12:00:00'))) return 'Data evento non valida.';
+        } else if (wiz.type === 'popup') {
+            if (!wiz.title) return 'Il titolo è obbligatorio.';
+            const s = new Date(wiz.popStart + 'T00:00:00');
+            const e = new Date(wiz.popEnd + 'T23:59:59');
+            if (!wiz.popStart || !wiz.popEnd || isNaN(s) || isNaN(e)) return 'Date di visibilità non valide.';
+            if (e <= s) return 'La fine deve essere successiva all\'inizio.';
+        }
+        return '';
+    }
+
+    const MK_STEPS = ['Tipo', 'Contenuto', 'Grafica', 'Riepilogo'];
+
+    function mkTypeCard(kind, icon, title, desc) {
+        return `
+        <button class="mk-type-card" data-mk-action="wiz-type" data-type="${kind}" type="button">
+            <span class="mk-type-icon">${icon}</span>
+            <strong>${title}</strong>
+            <span>${desc}</span>
+        </button>`;
+    }
+
+    function mkWizardStepHTML() {
+        const w = wiz;
+        if (w.step === 1) {
+            return `
+            <p class="mk-step-title">Cosa vuoi generare?</p>
+            <div class="mk-type-grid">
+                ${mkTypeCard('post', '📱', 'Post social + reel/video', 'Immagini, reel animati e video IA per Facebook, Instagram, WhatsApp e TikTok — con logo e testi animati.')}
+                ${mkTypeCard('evento', '🎪', 'Evento', 'Appare nella homepage del sito con immagine, data e descrizione.')}
+                ${mkTypeCard('popup', '🪟', 'Popup', 'Annuncio che si apre sul sito in un periodo scelto, con sfondo generato e invito all\'azione.')}
+            </div>`;
+        }
+        if (w.step === 2 && w.type === 'post') {
+            return `
+            <p class="mk-step-title">Contenuto del post</p>
+            <div class="adm-group">
+                <label for="mkPostTitle">Titolo interno <span class="adm-tip" tabindex="0" data-tip="Solo per riconoscerlo in lista: non compare nei social.">?</span></label>
+                <input id="mkPostTitle" type="text" maxlength="80" value="${esc(w.title)}" placeholder="Es. Apertura stagione — annuncio">
+            </div>
+            <div class="adm-group">
+                <label for="mkPostBrief">Didascalia <span class="adm-tip" tabindex="0" data-tip="Il testo del post; vale per tutte le piattaforme selezionate.">?</span></label>
+                <textarea id="mkPostBrief" rows="4" placeholder="Venerdì 3 ottobre riapre la Fonderia…">${esc(w.brief)}</textarea>
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="wiz-copyai" type="button">🪄 Scrivila con l'IA</button>
+                <span id="mkCopyStatus" class="adm-cell-muted" role="status"></span>
+            </div>
+            <div class="adm-row">
+                <div class="adm-group">
+                    <label for="mkPostCampaign">Campagna <span class="adm-tip" tabindex="0" data-tip="Opzionale: raggruppa i post per analizzarne il traffico. Puoi crearla al volo qui sotto o saltare.">?</span></label>
+                    <select id="mkPostCampaign">
+                        <option value="">— Nessuna —</option>
+                        ${mkCampaigns.map((c) => `<option value="${esc(c.id)}"${w.campaignId === c.id ? ' selected' : ''}>${esc(c.data.name)}</option>`).join('')}
+                    </select>
+                    <input id="mkNewCampaign" type="text" maxlength="60" value="${esc(w.newCampaign)}" placeholder="…oppure scrivi un nome per crearla al volo">
+                </div>
+                <div class="adm-group">
+                    <label for="mkPostScheduled">Data pubblicazione <span class="adm-tip" tabindex="0" data-tip="Opzionale: solo promemoria interno, la pubblicazione la fai tu dalle app social.">?</span></label>
+                    <input id="mkPostScheduled" type="date" value="${esc(w.scheduled)}">
+                </div>
+            </div>
+            <div class="adm-group">
+                <label>Piattaforme</label>
+                <div class="adm-checks">
+                    ${Object.entries(SOC_PLATFORMS).map(([k, l]) => `
+                        <label class="adm-check"><input class="mk-plat" type="checkbox" value="${k}"${w.platforms.includes(k) ? ' checked' : ''}> ${l}</label>`).join('')}
+                </div>
+            </div>`;
+        }
+        if (w.step === 2 && w.type === 'evento') {
+            return `
+            <p class="mk-step-title">Contenuto dell'evento</p>
+            <div class="adm-row">
+                <div class="adm-group">
+                    <label for="mkEvTitle">Titolo</label>
+                    <input id="mkEvTitle" type="text" value="${esc(w.title)}" placeholder="Apertura Stagione">
+                </div>
+                <div class="adm-group">
+                    <label for="mkEvTagline">Tagline</label>
+                    <input id="mkEvTagline" type="text" value="${esc(w.evTagline)}" placeholder="Una serata speciale…">
+                </div>
+            </div>
+            <div class="adm-row">
+                <div class="adm-group"><label for="mkEvDate">Data</label><input id="mkEvDate" type="date" value="${esc(w.evDate)}"></div>
+                <div class="adm-group"><label for="mkEvTime">Ora</label><input id="mkEvTime" type="text" value="${esc(w.evTime)}" placeholder="21:00"></div>
+            </div>
+            <div class="adm-group">
+                <label for="mkEvDesc">Descrizione</label>
+                <textarea id="mkEvDesc" rows="4">${esc(w.evDesc)}</textarea>
+            </div>
+            <div class="adm-checks"><label class="adm-check"><input id="mkEvActive" type="checkbox"${w.evActive ? ' checked' : ''}> Visibile sul sito</label></div>`;
+        }
+        if (w.step === 2 && w.type === 'popup') {
+            return `
+            <p class="mk-step-title">Contenuto del popup</p>
+            <div class="adm-group">
+                <label for="mkPopTitle">Titolo</label>
+                <input id="mkPopTitle" type="text" value="${esc(w.title)}" placeholder="Apertura Stagione — 3 ottobre">
+            </div>
+            <div class="adm-group">
+                <label for="mkPopBody">Testo</label>
+                <textarea id="mkPopBody" rows="3">${esc(w.popBody)}</textarea>
+            </div>
+            <div class="adm-row">
+                <div class="adm-group"><label for="mkPopStart">Visibile dal</label><input id="mkPopStart" type="date" value="${esc(w.popStart)}"></div>
+                <div class="adm-group"><label for="mkPopEnd">Fino al</label><input id="mkPopEnd" type="date" value="${esc(w.popEnd)}"></div>
+            </div>
+            <div class="adm-group">
+                <label>Invito all'azione</label>
+                <div class="adm-checks">
+                    <label class="adm-check"><input type="radio" name="mkPopCta" value="booking"${w.popCtaType === 'booking' ? ' checked' : ''}> Prenotazione</label>
+                    <label class="adm-check"><input type="radio" name="mkPopCta" value="link"${w.popCtaType === 'link' ? ' checked' : ''}> Nessuna (solo annuncio)</label>
+                </div>
+            </div>
+            <div class="adm-row">
+                <div class="adm-group"><label for="mkPopBookingType">Tipo prenotazione</label>
+                    <select id="mkPopBookingType">
+                        <option value="cena"${w.popBookingType === 'cena' ? ' selected' : ''}>Cena</option>
+                        <option value="after-cena"${w.popBookingType === 'after-cena' ? ' selected' : ''}>After-Cena</option>
+                        <option value="evento"${w.popBookingType === 'evento' ? ' selected' : ''}>Evento</option>
+                    </select>
+                </div>
+                <div class="adm-group"><label for="mkPopEventTitle">Nome evento (se tipo Evento)</label>
+                    <input id="mkPopEventTitle" type="text" value="${esc(w.popEventTitle)}" placeholder="Apertura Stagione">
+                </div>
+            </div>
+            <div class="adm-checks"><label class="adm-check"><input id="mkPopActive" type="checkbox"${w.popActive ? ' checked' : ''}> Attivo</label></div>`;
+        }
+        if (w.step === 3) {
+            const isPost = w.type === 'post';
+            return `
+            <p class="mk-step-title">${isPost ? 'Grafica e video del post' : 'Immagine'}</p>
+            <div class="adm-group">
+                <label for="mkAiPrompt">Genera con IA <span class="adm-tip" tabindex="0" data-tip="Gemini genera un'immagine dal testo: descrivi scena, colori, atmosfera. Circa 30 secondi.">?</span></label>
+                <textarea id="mkAiPrompt" rows="2" placeholder="Es. Interno industriale della Fonderia, luci calde, spritz in primo piano…">${esc(w.aiPrompt || (w.title + (w.evTagline ? ' — ' + w.evTagline : '')))}</textarea>
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" id="mkAiGenBtn" type="button" data-mk-action="wiz-aigen">🎨 Genera immagine con IA</button>
+                <span id="mkAiStatus" class="adm-cell-muted" role="status"></span>
+            </div>
+            <div class="adm-row">
+                <div class="adm-group">
+                    <label for="mkUpload">Oppure carica un file</label>
+                    <input id="mkUpload" type="file" accept="image/*">
+                </div>
+                <div class="adm-group">
+                    <label>Oppure scegli dai media già generati</label>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="wiz-picktoggle" type="button" id="mkPickToggle">🖼 Apri scelta media</button>
+                </div>
+            </div>
+            <div id="mkPicker" class="adm-ed-picker" hidden></div>
+            ${w.imageUrl ? `
+            <div class="mk-chosen">
+                <img src="${esc(w.imageUrl)}" alt="Immagine scelta">
+                <div>
+                    <div class="adm-cell-muted">Immagine scelta</div>
+                    <div class="adm-gal-actions">
+                        <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="wiz-edit-base" type="button">✏️ Logo/Testi (editor)</button>
+                        <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="wiz-clearimg" type="button">Rimuovi</button>
+                    </div>
+                </div>
+            </div>` : '<div class="adm-cell-muted">Nessuna immagine scelta ancora.</div>'}
+            ${isPost ? `
+            <div class="adm-form-title" style="margin-top:14px">Video</div>
+            <div class="adm-row">
+                <div class="adm-group">
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="wiz-reel" type="button"${w.imageUrl ? '' : ' disabled'}>🎬 Reel animato 8s (gratis, webm)</button>
+                </div>
+                <div class="adm-group">
+                    <label for="mkVeoPrompt">Video IA Veo 8s — costo ≈ 1,50 €</label>
+                    <textarea id="mkVeoPrompt" rows="2" placeholder="Es. La camera avanza lentamente tra i tavoli…">${esc(w.veoPrompt || w.brief || '')}</textarea>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="wiz-veo" type="button"${w.imageUrl ? '' : ' disabled'}>🎬 Genera video Veo</button>
+                </div>
+            </div>` : ''}
+            <span id="mkMediaStatus" class="adm-cell-muted" role="status">${esc(w.statusLine || '')}</span>
+            ${w.assets.length ? '<div class="adm-form-title" style="margin-top:14px">Media prodotti (' + w.assets.length + ')</div>' : ''}
+            <div class="mk-assets">
+                ${w.assets.map((a, i) => `
+                <div class="mk-asset">
+                    ${a.kind === 'video' ? `<video src="${esc(a.url)}" muted playsinline preload="metadata"></video>` : `<img src="${esc(a.url)}" alt="" loading="lazy">`}
+                    <span class="mk-asset-label">${esc(a.label)}</span>
+                    <div class="adm-gal-actions">
+                        <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="wiz-edit-asset" data-idx="${i}" type="button">✏️ Logo/Testi</button>
+                        <button class="adm-btn adm-btn-danger adm-btn-sm" data-mk-action="wiz-del-asset" data-idx="${i}" type="button">Rimuovi</button>
+                    </div>
+                </div>`).join('')}
+            </div>`;
+        }
+        // step 4: riepilogo
+        const typeLabel = { post: '📱 Post social', evento: '🎪 Evento', popup: '🪟 Popup' }[w.type];
+        const rows = [['Tipo', typeLabel], ['Titolo', w.title || '—']];
+        if (w.type === 'post') {
+            rows.push(['Piattaforme', w.platforms.map((k) => SOC_PLATFORMS[k]).join(', ') || '—']);
+            rows.push(['Campagna', w.newCampaign ? w.newCampaign + ' (nuova)' : (campaignName(w.campaignId) || 'nessuna')]);
+            if (w.scheduled) rows.push(['Pubblicazione', w.scheduled]);
+        } else if (w.type === 'evento') {
+            rows.push(['Data', w.evDate + (w.evTime ? ' ' + w.evTime : '')]);
+        } else if (w.type === 'popup') {
+            rows.push(['Periodo', w.popStart + ' → ' + w.popEnd]);
+        }
+        rows.push(['Immagine', w.imageUrl ? 'sì ✓' : 'nessuna']);
+        if (w.type === 'post') rows.push(['Media prodotti', String(w.assets.length)]);
+        return `
+        <p class="mk-step-title">Riepilogo — controlla e salva</p>
+        <dl class="mk-summary">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+        ${w.imageUrl ? `<div class="mk-chosen"><img src="${esc(w.imageUrl)}" alt=""><div class="adm-cell-muted">Anteprima immagine</div></div>` : ''}
+        <div id="mkSaveErr" class="adm-inline-err" hidden></div>`;
+    }
+
+    function mkPaintWizard() {
+        const host = $('mkWizardHost');
+        if (!host || !wiz) return;
+        const w = wiz;
+        const canNext = w.step === 1 ? Boolean(w.type)
+            : w.step === 2 ? true
+            : w.step === 3 ? true : false;
+        host.innerHTML = `
+        <div class="mk-overlay">
+            <div class="mk-modal" role="dialog" aria-modal="true" aria-label="Generazione grafiche">
+                <div class="mk-modal-head">
+                    <div>
+                        <div class="mk-modal-title">${w.editId ? 'Modifica' : 'Generazione grafiche'}</div>
+                        <div class="mk-steps">${MK_STEPS.map((s, i) => `<span class="mk-step-dot${w.step === i + 1 ? ' active' : ''}${w.step > i + 1 ? ' done' : ''}">${i + 1}. ${s}</span>`).join('')}</div>
+                    </div>
+                    <button class="adm-btn adm-btn-ghost" data-mk-action="close-wizard" type="button">✕ Chiudi</button>
+                </div>
+                <div class="mk-modal-body">${mkWizardStepHTML()}</div>
+                <div class="mk-modal-foot">
+                    ${w.step > 1 ? '<button class="adm-btn adm-btn-ghost" data-mk-action="wiz-back" type="button">← Indietro</button>' : '<span></span>'}
+                    ${w.step < 4 ? `<button class="adm-btn" data-mk-action="wiz-next" type="button"${canNext ? '' : ' disabled'}>Avanti →</button>` : '<button class="adm-btn" data-mk-action="wiz-save" type="button" id="mkSaveBtn">💾 Salva</button>'}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    // Upload file scelto nel wizard (immagine → social/upload-…), poi la mostra come scelta.
+    async function mkUploadImage(file) {
+        if (!file) return;
+        if (file.size > 50 * 1024 * 1024) { toast('File troppo grande (max 50 MB).', true); return; }
+        try {
+            const storage = await getStorageInstance();
+            const path = 'social/upload-' + Date.now() + '-' + sanitizeFilename(file.name);
+            await uploadBytes(storageRef(storage, path), file, { contentType: file.type });
+            wiz.imageUrl = await getDownloadURL(storageRef(storage, path));
+            mkHarvestStep();
+            mkPaintWizard();
+            toast('Immagine caricata.');
+        } catch (err) {
+            console.error('[admin] mk upload error:', err);
+            toast('Upload non riuscito: ' + (err.code || err.message), true);
+        }
+    }
+
+    // Reel webm dall'immagine scelta (Ken Burns), come nella tab Social.
+    async function mkMakeReel() {
+        if (!wiz || !wiz.imageUrl) { toast('Prima scegli l\'immagine base.', true); return; }
+        const st = $('mkMediaStatus');
+        try {
+            if (st) st.textContent = 'Registro l\'animazione (circa 10 secondi)…';
+            const img = await socLoadImage(wiz.imageUrl);
+            const blob = await socRenderReel(img, wiz.title || 'Fonderia Treviso');
+            const storage = await getStorageInstance();
+            const path = 'social/reel-webm-' + socSlug(wiz.title || 'post') + '-' + Date.now() + '.webm';
+            await uploadBytes(storageRef(storage, path), blob, { contentType: 'video/webm' });
+            const url = await getDownloadURL(storageRef(storage, path));
+            wiz.assets.push({ kind: 'video', label: 'reel animato (webm)', url, path });
+            mkHarvestStep();
+            wiz.statusLine = 'Reel pronto ✓ (IG/TikTok preferiscono mp4, ma accettano webm).';
+            mkPaintWizard();
+        } catch (err) {
+            console.error('[admin] mk reel error:', err);
+            wiz.statusLine = 'Reel non riuscito: ' + (err.message || err);
+            mkPaintWizard();
+        }
+    }
+
+    // Video Veo 8s dall'immagine scelta (callable generateReelVideo, ~1,50 €).
+    async function mkMakeVeo() {
+        if (!wiz || !wiz.imageUrl) { toast('Prima scegli l\'immagine base (sarà il primo frame).', true); return; }
+        mkHarvestStep();
+        const prompt = (wiz.veoPrompt || wiz.brief || wiz.title || '').trim();
+        if (prompt.length < 10) { toast('Descrivi il video (almeno 10 caratteri) nel campo sotto il bottone.', true); return; }
+        wiz.statusLine = 'Veo sta generando il video (1-3 minuti, costo ≈ 1,50 € addebitato al progetto)…';
+        mkPaintWizard();
+        try {
+            const fn = httpsCallable(await getFunctionsInstance(), 'generateReelVideo');
+            const res = await fn({ prompt, imageUrl: wiz.imageUrl });
+            const url = res && res.data && res.data.url;
+            if (!url) throw new Error('risposta senza URL');
+            wiz.assets.push({ kind: 'video', label: 'video IA Veo (mp4)', url, path: res.data.path || '' });
+            wiz.statusLine = 'Video pronto ✓ formato mp4.';
+        } catch (err) {
+            console.error('[admin] mk veo error:', err);
+            wiz.statusLine = 'Video non riuscito: ' + ((err && (err.details || err.message)) || String(err));
+        }
+        mkPaintWizard();
+    }
+
+    // Didascalia scritta da Gemini (callable generateSocialCopy già usato in Social).
+    async function mkCopyAI() {
+        if (!wiz) return;
+        mkHarvestStep();
+        const btn = panel.querySelector('[data-mk-action="wiz-copyai"]');
+        const st = $('mkCopyStatus');
+        if ((wiz.brief || wiz.title || '').trim().length < 5) { toast('Scrivi prima qualche parola nel campo didascalia (anche solo l\'idea).', true); return; }
+        if (btn) btn.disabled = true;
+        if (st) st.textContent = 'L\'IA scrive…';
+        try {
+            const fn = httpsCallable(await getFunctionsInstance(), 'generateSocialCopy');
+            const res = await fn({ brief: wiz.brief || wiz.title });
+            const data = (res && res.data) || {};
+            // generateSocialCopy risponde per piattaforma {fb, ig, wa, tt}: prendiamo ig (la piu' completa)
+            const text = data.ig || data.fb || data.tt || data.wa || '';
+            if (!text) throw new Error('risposta senza testo');
+            wiz.brief = String(text);
+            if (st) st.textContent = 'Fatto ✓';
+            mkPaintWizard();
+        } catch (err) {
+            console.error('[admin] mk copyai error:', err);
+            const msg = (err && (err.details || err.message)) || String(err);
+            if (st) st.textContent = 'Non riuscita: ' + msg;
+            toast('Copia IA non riuscita: ' + msg, true);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    // Salvataggio finale: payload identici alle tab storiche (events/popups/socialPosts).
+    async function mkSave() {
+        if (!wiz) return;
+        const errBox = $('mkSaveErr');
+        const btn = $('mkSaveBtn');
+        if (btn) btn.disabled = true;
+        try {
+            if (wiz.type === 'post') {
+                let campaignId = wiz.campaignId;
+                if (wiz.newCampaign && wiz.newCampaign.length >= 3) {
+                    const refDoc = await addDoc(collection(db, 'campaigns'), { name: wiz.newCampaign, status: 'active', ...auditCreate() });
+                    campaignId = refDoc.id;
+                }
+                const copy = {};
+                Object.keys(SOC_PLATFORMS).forEach((k) => { copy[k] = wiz.platforms.includes(k) ? wiz.brief : ''; });
+                // in modifica wiz.assets e' gia' precompilato con gli asset esistenti:
+                // salvarlo cosi' com'e' copre aggiunte e rimozioni fatte nel wizard
+                const existing = wiz.editId ? mkPosts.find((x) => x.id === wiz.editId) : null;
+                const payload = {
+                    title: wiz.title,
+                    brief: wiz.brief,
+                    campaignId,
+                    platforms: wiz.platforms,
+                    copy,
+                    baseImageUrl: wiz.imageUrl || (existing ? existing.data.baseImageUrl : '') || '',
+                    assets: wiz.assets,
+                    scheduledFor: wiz.scheduled || '',
+                    status: existing ? (existing.data.status || 'draft') : 'draft',
+                    ...auditUpdate(),
+                };
+                if (wiz.editId) {
+                    await updateDoc(doc(db, 'socialPosts', wiz.editId), payload);
+                    toast('Post aggiornato.');
+                } else {
+                    await addDoc(collection(db, 'socialPosts'), { ...payload, manualStats: {}, ...auditCreate() });
+                    toast('Post creato.');
+                }
+            } else if (wiz.type === 'evento') {
+                const payload = {
+                    title: wiz.title,
+                    tagline: wiz.evTagline,
+                    date: new Date(wiz.evDate + 'T12:00:00'),
+                    time: wiz.evTime,
+                    description: wiz.evDesc,
+                    image: wiz.imageUrl || '',
+                    active: wiz.evActive,
+                    order: 0,
+                    ...auditUpdate(),
+                };
+                if (wiz.editId) {
+                    await updateDoc(doc(db, 'events', wiz.editId), payload);
+                    toast('Evento aggiornato.');
+                } else {
+                    await addDoc(collection(db, 'events'), { ...payload, ...auditCreate() });
+                    toast('Evento creato.');
+                }
+            } else if (wiz.type === 'popup') {
+                const payload = {
+                    title: wiz.title,
+                    body: wiz.popBody,
+                    startDate: new Date(wiz.popStart + 'T00:00:00'),
+                    endDate: new Date(wiz.popEnd + 'T23:59:59'),
+                    active: wiz.popActive,
+                    imageUrl: wiz.imageUrl || '',
+                    imageSource: wiz.imageUrl ? 'storage' : 'local',
+                    ctaType: wiz.popCtaType,
+                    ...auditUpdate(),
+                };
+                if (wiz.popCtaType === 'booking') {
+                    payload.ctaBookingType = wiz.popBookingType;
+                    payload.eventTitle = wiz.popEventTitle;
+                    payload.ctaLabel = 'Prenota';
+                    payload.ctaUrl = null;
+                } else {
+                    payload.ctaUrl = null;
+                    payload.ctaLabel = 'Chiudi';
+                    payload.ctaBookingType = null;
+                    payload.eventTitle = null;
+                }
+                if (wiz.editId) {
+                    // come la tab Popup: ogni modifica ripresenta il popup a chi l'aveva chiuso
+                    payload.version = increment(1);
+                    await updateDoc(doc(db, 'popups', wiz.editId), payload);
+                    toast('Popup aggiornato (verrà ri-mostrato a tutti).');
+                } else {
+                    await addDoc(collection(db, 'popups'), { ...payload, version: 1, ...auditCreate() });
+                    toast('Popup creato.');
+                }
+            }
+            mkCloseWizard();
+        } catch (err) {
+            console.error('[admin] mk save error:', err);
+            if (errBox) {
+                errBox.textContent = 'Salvataggio non riuscito: ' + (err.code || err.message);
+                errBox.hidden = false;
+            }
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    /* ------------------------------ delega eventi ------------------------------ */
+
+    panel.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-mk-action]');
+        if (!btn) return;
+        const action = btn.dataset.mkAction;
+        try {
+            if (action === 'open-wizard') {
+                mkOpenWizard(null, null);
+            } else if (action === 'close-wizard') {
+                mkHarvestStep();
+                mkCloseWizard();
+            } else if (action === 'filter') {
+                filter = btn.dataset.filter;
+                render();
+            } else if (action === 'edit-item') {
+                mkOpenWizard(btn.dataset.type, btn.dataset.id);
+            } else if (action === 'del-item') {
+                const label = btn.dataset.label || '';
+                const coll = { post: 'socialPosts', evento: 'events', popup: 'popups' }[btn.dataset.type];
+                if (!coll) return;
+                if (!confirm('Eliminare "' + label + '"? I file media su Storage restano disponibili.')) return;
+                await deleteDoc(doc(db, coll, btn.dataset.id));
+                toast('Eliminato.');
+            } else if (action === 'toggle-active') {
+                const coll = btn.dataset.type === 'evento' ? 'events' : 'popups';
+                const list = btn.dataset.type === 'evento' ? mkEvents : mkPopups;
+                const item = list.find((x) => x.id === btn.dataset.id);
+                if (!item) return;
+                const payload = { active: item.data.active === false, ...auditUpdate() };
+                if (coll === 'popups') payload.version = increment(1);
+                await updateDoc(doc(db, coll, btn.dataset.id), payload);
+                toast(payload.active ? 'Attivato.' : 'Spento.');
+            } else if (action === 'download') {
+                const ext = btn.dataset.url.includes('.webm') ? '.webm' : btn.dataset.url.includes('.mp4') ? '.mp4' : '.png';
+                await socDownload(btn.dataset.url, 'fonderia-' + socSlug(btn.dataset.label || 'media') + ext);
+            } else if (action === 'edit-media') {
+                if (!marketingBridge.openEditor) { toast('Editor non disponibile.', true); return; }
+                marketingBridge.openEditor(btn.dataset.url, btn.dataset.kind === 'video' ? 'video' : 'image');
+            } else if (action === 'wiz-type') {
+                wiz.type = btn.dataset.type;
+                mkPaintWizard();
+            } else if (action === 'wiz-back') {
+                mkHarvestStep();
+                wiz.step = Math.max(1, wiz.step - 1);
+                mkPaintWizard();
+            } else if (action === 'wiz-next') {
+                mkHarvestStep();
+                if (wiz.step === 2) {
+                    const msg = mkValidateStep2();
+                    if (msg) { toast(msg, true); return; }
+                }
+                wiz.step = Math.min(4, wiz.step + 1);
+                mkPaintWizard();
+            } else if (action === 'wiz-save') {
+                mkHarvestStep();
+                await mkSave();
+            } else if (action === 'wiz-copyai') {
+                await mkCopyAI();
+            } else if (action === 'wiz-aigen') {
+                mkHarvestStep();
+                // runAiImage chiama onUrl(url) a generazione riuscita: assegniamo
+                // e ridisegniamo lo step per mostrare l'immagine scelta
+                await runAiImage('mk', (url) => {
+                    if (!wiz) return;
+                    wiz.imageUrl = url;
+                    mkPaintWizard();
+                });
+            } else if (action === 'wiz-picktoggle') {
+                const box = $('mkPicker');
+                if (!box) return;
+                if (!box.hidden) { box.hidden = true; return; }
+                const seen = new Set();
+                const urls = [];
+                mkPosts.forEach((p) => (p.data.assets || []).forEach((a) => {
+                    if (!seen.has(a.url)) { seen.add(a.url); urls.push(a.url); }
+                }));
+                mkGfx.forEach((g) => {
+                    if (!seen.has(g.data.url)) { seen.add(g.data.url); urls.push(g.data.url); }
+                });
+                LOCAL_IMAGES.forEach((src) => { if (!seen.has(src)) urls.push(src); });
+                box.hidden = false;
+                box.innerHTML = urls.length
+                    ? urls.slice(0, 48).map((u) => `
+                        <button type="button" class="adm-ed-pick" data-mk-action="wiz-pick" data-url="${esc(u)}">
+                            <img src="${esc(u)}" alt="" loading="lazy"><span>scegli</span>
+                        </button>`).join('')
+                    : '<div class="adm-cell-muted">Ancora nessun media: genera o carica un\'immagine.</div>';
+            } else if (action === 'wiz-pick') {
+                wiz.imageUrl = btn.dataset.url;
+                mkHarvestStep();
+                mkPaintWizard();
+            } else if (action === 'wiz-clearimg') {
+                wiz.imageUrl = '';
+                mkHarvestStep();
+                mkPaintWizard();
+            } else if (action === 'wiz-reel') {
+                await mkMakeReel();
+            } else if (action === 'wiz-veo') {
+                await mkMakeVeo();
+            } else if (action === 'wiz-edit-base') {
+                if (!wiz || !wiz.imageUrl || !marketingBridge.openEditor) return;
+                const w = wiz;
+                marketingBridge.openEditor(wiz.imageUrl, 'image', (asset) => {
+                    if (!wiz || wiz !== w) return;
+                    if (w.type === 'post') {
+                        w.assets.push(asset);
+                    } else {
+                        // evento/popup: l'immagine editata diventa LA grafica dell'elemento
+                        w.imageUrl = asset.url;
+                    }
+                    w.statusLine = 'Grafica con logo/testi salvata ✓';
+                });
+            } else if (action === 'wiz-edit-asset') {
+                const a = wiz && wiz.assets[Number(btn.dataset.idx)];
+                if (!a || !marketingBridge.openEditor) return;
+                const w = wiz;
+                marketingBridge.openEditor(a.url, a.kind === 'video' ? 'video' : 'image', (asset) => {
+                    if (!wiz || wiz !== w) return;
+                    w.assets.push(asset); // la versione editata si aggiunge; l'originale resta rimovibile
+                    w.statusLine = 'Versione con logo/testi salvata ✓';
+                });
+            } else if (action === 'wiz-del-asset') {
+                wiz.assets.splice(Number(btn.dataset.idx), 1);
+                mkHarvestStep();
+                mkPaintWizard();
+            }
+        } catch (err) {
+            console.error('[admin] marketing action error:', err);
+            toast('Operazione non riuscita: ' + (err.code || err.message), true);
+        }
+    });
+
+    // upload immagine dal wizard (input file viene ricreato a ogni repaint → delega su change)
+    panel.addEventListener('change', (e) => {
+        if (e.target.id === 'mkUpload' && e.target.files && e.target.files[0]) {
+            mkUploadImage(e.target.files[0]);
+        }
+    });
+
+    /* ------------------------------ snapshot dati ------------------------------ */
+
+    // Il repaint non avviene mentre il wizard e' aperto (altrimenti perderebbe lo stato);
+    // la lista sotto si aggiorna alla chiusura del wizard.
+    const refreshIfIdle = () => { if (!wiz) render(); };
+    unsubscribe.mkEvents = onSnapshot(
+        query(collection(db, 'events'), orderBy('date', 'desc')),
+        (snap) => { mkEvents = snap.docs.map((d) => ({ id: d.id, data: d.data() })); refreshIfIdle(); },
+        (err) => console.error('[admin] mk events snapshot error:', err)
+    );
+    unsubscribe.mkPopups = onSnapshot(
+        query(collection(db, 'popups'), orderBy('startDate', 'desc')),
+        (snap) => { mkPopups = snap.docs.map((d) => ({ id: d.id, data: d.data() })); refreshIfIdle(); },
+        (err) => console.error('[admin] mk popups snapshot error:', err)
+    );
+    unsubscribe.mkPosts = onSnapshot(
+        query(collection(db, 'socialPosts'), orderBy('scheduledFor')),
+        (snap) => { mkPosts = snap.docs.map((d) => ({ id: d.id, data: d.data() })); refreshIfIdle(); },
+        (err) => console.error('[admin] mk posts snapshot error:', err)
+    );
+    unsubscribe.mkCampaigns = onSnapshot(
+        query(collection(db, 'campaigns'), orderBy('name')),
+        (snap) => { mkCampaigns = snap.docs.map((d) => ({ id: d.id, data: d.data() })); refreshIfIdle(); },
+        (err) => console.error('[admin] mk campaigns snapshot error:', err)
+    );
+    try {
+        // libreria grafica: lettura one-shot (non serve live)
+        const gfxSnap = await getDocs(query(collection(db, 'graphicAssets'), orderBy('name')));
+        mkGfx = gfxSnap.docs.map((d) => ({ id: d.id, data: d.data() }));
+    } catch (err) {
+        console.error('[admin] mk graphicAssets load error:', err);
+    }
 
     render();
 }
