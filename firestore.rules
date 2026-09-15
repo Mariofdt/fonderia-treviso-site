@@ -223,6 +223,13 @@ service cloud.firestore {
       allow read, create, update, delete: if isAdmin();
     }
 
+    // mediaAssets: registro di OGNI media prodotto (grafiche editor, ritagli,
+    // reel, video IA), cosi' la Galleria mostra anche quelli non ancora
+    // collegati a un post salvato. Solo admin.
+    match /mediaAssets/{assetId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
     // ---------- default deny ----------
 
     match /{document=**} {

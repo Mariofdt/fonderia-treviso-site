@@ -433,3 +433,30 @@ describe('social — graphicAssets libreria editor (solo admin)', () => {
     await assertFails(setDoc(doc(db, 'graphicAssets', 'g2'), { name: 'x', url: 'y' }));
   });
 });
+
+describe('social — mediaAssets registro media prodotti (solo admin)', () => {
+  it('anon NON puo\' leggere mediaAssets', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(getDocs(collection(db, 'mediaAssets')));
+  });
+
+  it('anon NON puo\' scrivere mediaAssets', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(setDoc(doc(db, 'mediaAssets', 'm1'), { url: 'x', kind: 'image' }));
+  });
+
+  it('editor attivo PUO\' creare, leggere ed eliminare mediaAssets', async () => {
+    const { deleteDoc } = require('firebase/firestore');
+    const db = testEnv.authenticatedContext('ed-uid', { email: EDITOR_EMAIL }).firestore();
+    await assertSucceeds(setDoc(doc(db, 'mediaAssets', 'm1'), {
+      url: 'https://x/edit.png', path: 'social/edit-x.png', kind: 'image', label: 'grafica editor', createdBy: EDITOR_EMAIL,
+    }));
+    await assertSucceeds(getDocs(collection(db, 'mediaAssets')));
+    await assertSucceeds(deleteDoc(doc(db, 'mediaAssets', 'm1')));
+  });
+
+  it('utente loggato NON admin NON puo\' scrivere mediaAssets', async () => {
+    const db = testEnv.authenticatedContext('rnd-uid', { email: 'estraneo@example.com' }).firestore();
+    await assertFails(setDoc(doc(db, 'mediaAssets', 'm2'), { url: 'y', kind: 'image' }));
+  });
+});

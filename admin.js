@@ -103,6 +103,26 @@ function auditBy(d) {
     return d && d.updatedBy ? ' · da ' + esc(d.updatedBy) : '';
 }
 
+// Registra ogni media prodotto (grafiche editor, ritagli, reel, video IA) in
+// mediaAssets: registro PERMANENTE letto dalla Galleria. Senza questo passaggio
+// un asset salvato dall'editor restava solo in pendingAssets -> invisibile fino
+// al salvataggio del post (bug segnalato da Mario 15/09/26). Non blocca il flusso:
+// un errore qui va solo in console.
+async function registerMediaAsset(asset) {
+    try {
+        const db = await getDb();
+        await addDoc(collection(db, 'mediaAssets'), {
+            url: asset.url,
+            path: asset.path || '',
+            kind: asset.kind === 'video' ? 'video' : 'image',
+            label: String(asset.label || '').slice(0, 120),
+            ...auditCreate(),
+        });
+    } catch (err) {
+        console.error('[admin] registerMediaAsset error:', err);
+    }
+}
+
 /* ------------------------------------ utils ------------------------------------ */
 
 function esc(v) {
@@ -413,7 +433,7 @@ async function initShell(user, authz) {
 
 function stopAll() {
     Object.values(unsubscribe).forEach((fn) => { if (fn) fn(); });
-    unsubscribe = { events: null, popups: null, bookings: null, newsletter: null, promos: null, badges: null, claims: null, users: null, social: null, campaigns: null, marketing: null, mkEvents: null, mkPopups: null, mkPosts: null, mkCampaigns: null };
+    unsubscribe = { events: null, popups: null, bookings: null, newsletter: null, promos: null, badges: null, claims: null, users: null, social: null, campaigns: null, marketing: null, mkEvents: null, mkPopups: null, mkPosts: null, mkCampaigns: null, mediaReg: null, mkMediaReg: null };
 }
 
 /* ------------------------------------ tab: eventi ------------------------------------ */
@@ -501,7 +521,7 @@ function eventFormHTML(ev) {
             </div>
         </div>
         <div id="evFormErr" class="adm-inline-err" hidden></div>
-        <div class="adm-form-actions">
+        <div class="adm-form-actions adm-actions-end">
             <button class="adm-btn" type="submit">${isEdit ? 'Salva modifiche' : 'Crea evento'}</button>
             <button class="adm-btn adm-btn-ghost" type="button" data-ev-action="cancel">Annulla</button>
         </div>
@@ -519,7 +539,7 @@ async function startEventsTab() {
                 <h2>Eventi</h2>
                 <p class="adm-panel-lead">Gli eventi attivi compaiono nella sezione Eventi del sito, in ordine di data.</p>
             </div>
-            <button class="adm-btn" data-ev-action="new" type="button">+ Nuovo evento</button>
+            <button class="adm-btn" data-ev-action="new" type="button" data-tip="Crea un evento: compare sulla home nella sezione Eventi appena lo attivi.">+ Nuovo evento</button>
         </div>
         <div id="evFormSlot"></div>
         <div id="evList" class="adm-list"><div class="adm-empty">Caricamento eventi…</div></div>`;
@@ -540,9 +560,9 @@ async function startEventsTab() {
                 </div>
                 <div class="adm-card-actions">
                     <span class="adm-badge ${ev.active !== false ? 'adm-badge--on' : 'adm-badge--off'}">${ev.active !== false ? 'Attivo' : 'Nascosto'}</span>
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-ev-action="toggle" data-id="${id}" type="button">${ev.active !== false ? 'Disattiva' : 'Attiva'}</button>
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-ev-action="edit" data-id="${id}" type="button">Modifica</button>
-                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-ev-action="delete" data-id="${id}" type="button">Elimina</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-ev-action="toggle" data-id="${id}" type="button" data-tip="${ev.active !== false ? 'Toglie l’evento dal sito senza cancellarlo: lo ritrovi qui e puoi riattivarlo.' : 'Rimette l’evento visibile sul sito.'}">${ev.active !== false ? 'Disattiva' : 'Attiva'}</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-ev-action="edit" data-id="${id}" type="button" data-tip="Apre il modulo con tutti i campi compilati: modifichi e salvi.">Modifica</button>
+                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-ev-action="delete" data-id="${id}" type="button" data-tip="Cancella l’evento definitivamente (chiede conferma).">Elimina</button>
                 </div>
             </div>`).join('');
     }
@@ -851,7 +871,7 @@ function popupFormHTML(pop) {
             <span class="adm-check-note">— altrimenti il salvataggio rimostra il popup a tutti</span>
         </label>
         <div id="popFormErr" class="adm-inline-err" hidden></div>
-        <div class="adm-form-actions">
+        <div class="adm-form-actions adm-actions-end">
             <button class="adm-btn" type="submit">${isEdit ? 'Salva modifiche' : 'Crea popup'}</button>
             <button class="adm-btn adm-btn-ghost" type="button" data-pop-action="cancel">Annulla</button>
         </div>
@@ -870,7 +890,7 @@ async function startPopupsTab() {
                 <h2>Popup</h2>
                 <p class="adm-panel-lead">Il popup attivo e nel suo intervallo di date viene mostrato ai visitatori del sito. Ogni salvataggio (salvo la spunta "mantieni dismissal") lo rimostra a tutti.</p>
             </div>
-            <button class="adm-btn" data-pop-action="new" type="button">+ Nuovo popup</button>
+            <button class="adm-btn" data-pop-action="new" type="button" data-tip="Crea un popup che appare ai visitatori nel periodo scelto.">+ Nuovo popup</button>
         </div>
         <div id="popFormSlot"></div>
         <div id="popList" class="adm-list"><div class="adm-empty">Caricamento popup…</div></div>`;
@@ -891,9 +911,9 @@ async function startPopupsTab() {
                 </div>
                 <div class="adm-card-actions">
                     <span class="adm-badge ${p.active !== false ? 'adm-badge--on' : 'adm-badge--off'}">${p.active !== false ? 'Attivo' : 'Nascosto'}</span>
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-pop-action="toggle" data-id="${id}" type="button">${p.active !== false ? 'Disattiva' : 'Attiva'}</button>
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-pop-action="edit" data-id="${id}" type="button">Modifica</button>
-                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-pop-action="delete" data-id="${id}" type="button">Elimina</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-pop-action="toggle" data-id="${id}" type="button" data-tip="${p.active !== false ? 'Nascosto ai visitatori ma conservato qui.' : 'Di nuovo visibile a chi apre il sito nel periodo impostato.'}">${p.active !== false ? 'Disattiva' : 'Attiva'}</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-pop-action="edit" data-id="${id}" type="button" data-tip="Apre il modulo compilato: al salvataggio il popup sale di versione e viene rimostrato a tutti.">Modifica</button>
+                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-pop-action="delete" data-id="${id}" type="button" data-tip="Cancella il popup definitivamente (chiede conferma).">Elimina</button>
                 </div>
             </div>`).join('');
     }
@@ -1481,7 +1501,7 @@ function promoFormHTML(promo) {
             Attiva (visibile ai clienti)
         </label>
         <div id="promoFormErr" class="adm-inline-err" hidden></div>
-        <div class="adm-form-actions">
+        <div class="adm-form-actions adm-actions-end">
             <button class="adm-btn" type="submit">${isEdit ? 'Salva modifiche' : 'Crea promozione'}</button>
             <button class="adm-btn adm-btn-ghost" type="button" data-promo-action="cancel">Annulla</button>
         </div>
@@ -1505,7 +1525,7 @@ async function startPromosTab() {
                 <h2>Promozioni</h2>
                 <p class="adm-panel-lead">Le promo attive compaiono sulla pagina condivisione; ogni promo ha un link da girare ai clienti. In basso: richieste premio da approvare, referral sospetti e impostazioni.</p>
             </div>
-            <button class="adm-btn" data-promo-action="new" type="button">+ Nuova promozione</button>
+            <button class="adm-btn" data-promo-action="new" type="button" data-tip="Crea una promo con premio: il cliente manda la prova (screenshot) e riceve il QR da mostrare al banco.">+ Nuova promozione</button>
         </div>
         <div id="promoFormSlot"></div>
         <div id="promoList" class="adm-list"><div class="adm-empty">Caricamento promozioni…</div></div>
@@ -1556,7 +1576,7 @@ async function startPromosTab() {
                 <textarea id="gamPrizeOptions" rows="4"></textarea>
             </div>
             <div id="gamSettingsErr" class="adm-inline-err" hidden></div>
-            <div class="adm-form-actions">
+            <div class="adm-form-actions adm-actions-end">
                 <button class="adm-btn" type="submit">Salva impostazioni</button>
             </div>
         </form>`;
@@ -1589,10 +1609,10 @@ async function startPromosTab() {
                 </div>
                 <div class="adm-card-actions">
                     <span class="adm-badge ${p.active !== false ? 'adm-badge--on' : 'adm-badge--off'}">${p.active !== false ? 'Attiva' : 'Nascosta'}</span>
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-promo-action="copy" data-id="${esc(id)}" type="button">Copia link</button>
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-promo-action="toggle" data-id="${esc(id)}" type="button">${p.active !== false ? 'Disattiva' : 'Attiva'}</button>
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-promo-action="edit" data-id="${esc(id)}" type="button">Modifica</button>
-                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-promo-action="delete" data-id="${esc(id)}" type="button">Elimina</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-promo-action="copy" data-id="${esc(id)}" type="button" data-tip="Copia il link della pagina promo da condividere (fond…/promo.html?id=…).">Copia link</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-promo-action="toggle" data-id="${esc(id)}" type="button" data-tip="Attiva = i clienti possono partecipare; disattiva = ferma la promo senza cancellarla.">${p.active !== false ? 'Disattiva' : 'Attiva'}</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-promo-action="edit" data-id="${esc(id)}" type="button" data-tip="Apre il modulo compilato per modificare la promo.">Modifica</button>
+                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-promo-action="delete" data-id="${esc(id)}" type="button" data-tip="Cancella la promo definitivamente (chiede conferma).">Elimina</button>
                 </div>
             </div>`).join('');
     }
@@ -2028,7 +2048,7 @@ function badgeFormHTML(badge) {
             Attivo (assegnabile)
         </label>
         <div id="badgeFormErr" class="adm-inline-err" hidden></div>
-        <div class="adm-form-actions">
+        <div class="adm-form-actions adm-actions-end">
             <button class="adm-btn" type="submit">${isEdit ? 'Salva modifiche' : 'Crea badge'}</button>
             <button class="adm-btn adm-btn-ghost" type="button" data-badge-action="cancel">Annulla</button>
         </div>
@@ -2046,7 +2066,7 @@ async function startBadgesTab() {
                 <h2>Badge</h2>
                 <p class="adm-panel-lead">I badge attivi vengono assegnati in automatico dalle Cloud Function quando un cliente raggiunge la soglia della metrica scelta.</p>
             </div>
-            <button class="adm-btn" data-badge-action="new" type="button">+ Nuovo badge</button>
+            <button class="adm-btn" data-badge-action="new" type="button" data-tip="Distintivo assegnato in automatico quando il cliente raggiunge la soglia scelta.">+ Nuovo badge</button>
         </div>
         <div id="badgeFormSlot"></div>
         <div id="badgeList" class="adm-list"><div class="adm-empty">Caricamento badge…</div></div>`;
@@ -2067,9 +2087,9 @@ async function startBadgesTab() {
                 </div>
                 <div class="adm-card-actions">
                     <span class="adm-badge ${b.active !== false ? 'adm-badge--on' : 'adm-badge--off'}">${b.active !== false ? 'Attivo' : 'Nascosto'}</span>
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-badge-action="toggle" data-id="${esc(id)}" type="button">${b.active !== false ? 'Disattiva' : 'Attiva'}</button>
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-badge-action="edit" data-id="${esc(id)}" type="button">Modifica</button>
-                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-badge-action="delete" data-id="${esc(id)}" type="button">Elimina</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-badge-action="toggle" data-id="${esc(id)}" type="button" data-tip="Disattivato = smette di essere assegnato, ma chi ce l’ha già lo conserva.">${b.active !== false ? 'Disattiva' : 'Attiva'}</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-badge-action="edit" data-id="${esc(id)}" type="button" data-tip="Apre il modulo compilato per modificare il badge.">Modifica</button>
+                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-badge-action="delete" data-id="${esc(id)}" type="button" data-tip="Cancella il badge definitivamente (chiede conferma).">Elimina</button>
                 </div>
             </div>`).join('');
     }
@@ -2200,7 +2220,7 @@ function startUsersTab() {
                 </div>
             </div>
             <div id="usAddErr" class="adm-inline-err" hidden></div>
-            <div class="adm-form-actions">
+            <div class="adm-form-actions adm-actions-end">
                 <button class="adm-btn" type="submit">+ Aggiungi utente</button>
             </div>
         </form>
@@ -2455,6 +2475,7 @@ async function startSocialTab() {
     let view = 'create'; // create | campagna | galleria
     let campaigns = [];
     let posts = [];
+    let mediaReg = []; // registro permanente mediaAssets (Galleria)
     let editingId = null;      // post in modifica nella vista Crea
     let baseImageUrl = '';     // immagine base scelta (URL Storage pubblico)
     let gaCampaignSessions = null; // { slug: sessions } da getGaStats, una volta
@@ -2583,7 +2604,7 @@ async function startSocialTab() {
                 </div>
             </div>
             <div id="socErr" class="adm-inline-err" hidden></div>
-            <div class="adm-form-actions">
+            <div class="adm-form-actions adm-actions-end">
                 <button class="adm-btn" type="button" id="socSaveBtn">${editingId ? 'Salva modifiche' : 'Salva post in campagna'}</button>
                 ${editingId ? '<button class="adm-btn adm-btn-ghost" type="button" data-soc-action="new-post">Annulla modifica</button>' : ''}
             </div>
@@ -2639,14 +2660,14 @@ async function startSocialTab() {
                     </div>
                 </div>
                 <div class="adm-card-actions">
-                    <select data-soc-action="status" data-id="${esc(p.id)}" class="adm-input-sm">
+                    <select data-soc-action="status" data-id="${esc(p.id)}" class="adm-input-sm" data-tip="Stato del flusso di pubblicazione: Bozza → Pronto → Programmato → Pubblicato (poi misurazioni).">
                         ${Object.entries(SOC_STATUSES).map(([k, label]) =>
                             `<option value="${k}"${d.status === k ? ' selected' : ''}>${label}</option>`).join('')}
                     </select>
                     ${(d.platforms || []).includes('wa') && d.copy && d.copy.wa
-                        ? `<a class="adm-btn adm-btn-ghost adm-btn-sm" href="https://wa.me/?text=${encodeURIComponent(d.copy.wa)}" target="_blank" rel="noopener">Invia su WA</a>` : ''}
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="edit" data-id="${esc(p.id)}" type="button">Modifica</button>
-                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-soc-action="delete" data-id="${esc(p.id)}" type="button">Elimina</button>
+                        ? `<a class="adm-btn adm-btn-ghost adm-btn-sm" href="https://wa.me/?text=${encodeURIComponent(d.copy.wa)}" target="_blank" rel="noopener" data-tip="Apre WhatsApp col testo già pronto da inviare (stato, canale o chat).">Invia su WA</a>` : ''}
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="edit" data-id="${esc(p.id)}" type="button" data-tip="Riapre il modulo post compilato (brief, testi, media).">Modifica</button>
+                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-soc-action="delete" data-id="${esc(p.id)}" type="button" data-tip="Cancella il post definitivamente (chiede conferma).">Elimina</button>
                 </div>
             </div>`;
         }).join('');
@@ -2666,7 +2687,7 @@ async function startSocialTab() {
                     <input id="socCampName" type="text" required placeholder="Es. Apertura stagione 2026">
                 </div>
             </div>
-            <div class="adm-form-actions">
+            <div class="adm-form-actions adm-actions-end">
                 <button class="adm-btn adm-btn-ghost" type="submit">+ Crea campagna</button>
             </div>
         </form>
@@ -2681,6 +2702,14 @@ async function startSocialTab() {
     function galleriaHTML() {
         const seen = new Set();
         const assets = [];
+        // Registro permanente: media prodotti dall'editor/reel/Veo anche se non
+        // ancora collegati a un post salvato.
+        mediaReg.forEach((m) => {
+            if (m.data.url && !seen.has(m.data.url)) {
+                seen.add(m.data.url);
+                assets.push({ kind: m.data.kind === 'video' ? 'video' : 'image', label: m.data.label || 'media', url: m.data.url });
+            }
+        });
         posts.forEach((p) => {
             (p.data.assets || []).forEach((a) => {
                 if (a && a.url && !seen.has(a.url)) {
@@ -2702,10 +2731,10 @@ async function startSocialTab() {
                     <span>${esc(a.label)}${a.postTitle ? ' · ' + esc(a.postTitle) : ''}</span>
                 </div>
                 <div class="adm-gal-actions">
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="download" data-url="${esc(a.url)}" data-label="${esc(a.label)}" type="button">Scarica</button>
-                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="open-editor" data-url="${esc(a.url)}" data-kind="${a.kind === 'video' ? 'video' : 'image'}" type="button">✏️ Editor</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="download" data-url="${esc(a.url)}" data-label="${esc(a.label)}" type="button" data-tip="Salva il file sul computer per pubblicarlo dalle app social.">Scarica</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="open-editor" data-url="${esc(a.url)}" data-kind="${a.kind === 'video' ? 'video' : 'image'}" type="button" data-tip="Apre l’editor: testi con font a scelta, logo e sticker sopra il media.">✏️ Editor</button>
                     ${a.kind === 'image'
-                        ? `<button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="reuse" data-url="${esc(a.url)}" type="button">Riusa come base</button>` : ''}
+                        ? `<button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="reuse" data-url="${esc(a.url)}" type="button" data-tip="Parte un nuovo post usando questa immagine come base (vista Crea).">Riusa come base</button>` : ''}
                 </div>
             </div>`).join('');
         return `
@@ -2747,7 +2776,7 @@ async function startSocialTab() {
                 <span class="adm-gfx-preview"><img src="${esc(a.data.url)}" alt="${esc(a.data.name || '')}" loading="lazy"></span>
                 <input class="adm-input-sm adm-gfx-name" data-gfx-name="${esc(a.id)}" value="${esc(a.data.name || '')}">
                 <div class="adm-gal-actions">
-                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-soc-action="gfx-delete" data-id="${esc(a.id)}" type="button">Elimina</button>
+                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-soc-action="gfx-delete" data-id="${esc(a.id)}" type="button" data-tip="Rimuove l’asset dalla libreria dell’editor (chiede conferma).">Elimina</button>
                 </div>
             </div>`).join('');
     }
@@ -2811,7 +2840,49 @@ async function startSocialTab() {
     // Effetti animati solo su base video; su immagine l'export usa lo stato finale.
     // Tutto client-side (canvas + drawImage + MediaRecorder): zero costi server.
     const ED_EFFECTS = { none: 'Nessuno', fade: 'Comparsa', rise: 'Salita dal basso', pop: 'Zoom-pop', type: 'Macchina da scrivere' };
-    const ED_FONTS = { display: '"Space Grotesk", sans-serif', body: '"Inter", sans-serif' };
+    // Font disponibili nell'editor: Google Fonts caricati on-demand (link CSS +
+    // document.fonts.load) perche' il canvas non puo' pescare un font non ancora
+    // scaricato — la preview nel select usa lo stesso nome, quindi appena il CSS
+    // e' in pagina anche la tendina si disegna col font vero.
+    const ED_FONTS = {
+        display: { css: '"Space Grotesk", sans-serif', label: 'Space Grotesk (brand)' },
+        body: { css: '"Inter", sans-serif', label: 'Inter' },
+        bebas: { css: '"Bebas Neue", sans-serif', label: 'Bebas Neue (poster)', gf: 'Bebas+Neue' },
+        playfair: { css: '"Playfair Display", serif', label: 'Playfair Display (elegante)', gf: 'Playfair+Display:ital,wght@0,400;0,700;1,400' },
+        pacifico: { css: '"Pacifico", cursive', label: 'Pacifico (scrivente)', gf: 'Pacifico' },
+        anton: { css: '"Anton", sans-serif', label: 'Anton (grassetto block)', gf: 'Anton' },
+        lobster: { css: '"Lobster", cursive', label: 'Lobster (vintage)', gf: 'Lobster' },
+        oswald: { css: '"Oswald", sans-serif', label: 'Oswald (stretto)', gf: 'Oswald:wght@400;700' },
+    };
+    const edFontsLoaded = new Set(['display', 'body']); // gia' nel CSS del sito
+
+    // Carica il font Google (se serve) e aspetta che sia davvero pronto per il canvas.
+    async function edLoadFont(key) {
+        const f = ED_FONTS[key];
+        if (!f || edFontsLoaded.has(key)) return;
+        try {
+            if (f.gf && !document.getElementById('ed-gf-' + key)) {
+                const link = document.createElement('link');
+                link.id = 'ed-gf-' + key;
+                link.rel = 'stylesheet';
+                link.href = 'https://fonts.googleapis.com/css2?family=' + f.gf + '&display=swap';
+                document.head.appendChild(link);
+            }
+            const family = f.css.split(',')[0].replace(/"/g, '');
+            await Promise.race([
+                Promise.all([
+                    document.fonts.load('400 32px "' + family + '"'),
+                    document.fonts.load('700 32px "' + family + '"'),
+                ]),
+                new Promise((res) => setTimeout(res, 4000)), // mai bloccare il draw oltre 4s
+            ]);
+            edFontsLoaded.add(key);
+        } catch (err) {
+            console.warn('[admin] edLoadFont ' + key + ':', err);
+            edFontsLoaded.add(key); // non ritentare in loop
+        }
+    }
+    function edFontCss(key) { const f = ED_FONTS[key]; return f ? f.css : ED_FONTS.display.css; }
 
     let ed = null; // sessione: { baseUrl, baseKind, returnView, onSaved, media, W, H, layers, selId, drag, preview, saving, exporting }
 
@@ -2893,7 +2964,7 @@ async function startSocialTab() {
         }
         const fs = l.size * W;
         const mctx = document.createElement('canvas').getContext('2d');
-        mctx.font = (l.weight === '700' ? '700 ' : '400 ') + fs + 'px ' + (ED_FONTS[l.font] || ED_FONTS.display);
+        mctx.font = (l.weight === '700' ? '700 ' : '400 ') + fs + 'px ' + edFontCss(l.font);
         let maxW = fs;
         const lines = String(l.text || 'Testo').split('\n');
         lines.forEach((ln) => { maxW = Math.max(maxW, mctx.measureText(ln).width); });
@@ -2938,7 +3009,7 @@ async function startSocialTab() {
             ctx.drawImage(l.img, -w / 2, -h / 2, w, h);
         } else {
             const fs = l.size * fx.scale * W;
-            ctx.font = (l.weight === '700' ? '700 ' : '400 ') + fs + 'px ' + (ED_FONTS[l.font] || ED_FONTS.display);
+            ctx.font = (l.weight === '700' ? '700 ' : '400 ') + fs + 'px ' + edFontCss(l.font);
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             const lines = String(l.text || 'Testo').split('\n');
@@ -3052,9 +3123,9 @@ async function startSocialTab() {
                 <div class="adm-group"><label>Colore</label><input id="edTxtColor" type="color" value="${esc(l.color || '#f5efe4')}"></div>
             </div>
             <div class="adm-row">
-                <div class="adm-group"><label>Font</label><select id="edTxtFont">
-                    <option value="display"${(l.font || 'display') === 'display' ? ' selected' : ''}>Space Grotesk (brand)</option>
-                    <option value="body"${l.font === 'body' ? ' selected' : ''}>Inter</option>
+                <div class="adm-group"><label>Font <span class="adm-tip" tabindex="0" data-tip="La tendina mostra ogni font col suo aspetto reale. I font nuovi si caricano da Google al primo uso.">?</span></label><select id="edTxtFont" style="font-family:${esc(edFontCss(l.font || 'display'))}">
+                    ${Object.entries(ED_FONTS).map(([k, f]) =>
+                        `<option value="${k}" style="font-family:${esc(f.css)}"${(l.font || 'display') === k ? ' selected' : ''}>${esc(f.label)}</option>`).join('')}
                 </select></div>
                 <div class="adm-group"><label>Grassetto</label><select id="edTxtWeight">
                     <option value="700"${l.weight === '700' ? ' selected' : ''}>Sì</option>
@@ -3092,6 +3163,7 @@ async function startSocialTab() {
 
     async function edSaveImage(st) {
         st.textContent = 'Esporto il PNG…';
+        await Promise.all(ed.layers.filter((l) => l.type === 'text').map((l) => edLoadFont(l.font)));
         const out = document.createElement('canvas');
         out.width = ed.W;
         out.height = ed.H;
@@ -3103,6 +3175,7 @@ async function startSocialTab() {
         const saved = await edUpload(blob, 'image/png', '.png', st);
         const asset = { kind: 'image', label: 'grafica editor (png)', url: saved.url, path: saved.path };
         pendingAssets.push(asset);
+        await registerMediaAsset(asset);
         if (ed.onSaved) { try { ed.onSaved(asset); } catch (e) { console.error('[admin] onSaved editor:', e); } }
         st.textContent = 'PNG salvato ✓ in galleria (si collega al post quando lo salvi).';
         toast('Grafica salvata in galleria.');
@@ -3120,6 +3193,7 @@ async function startSocialTab() {
         v.loop = false;
         const dur = Math.min(v.duration || 8, 15); // cap di sicurezza 15s
         st.textContent = 'Registro il video con le sovrapposizioni…';
+        await Promise.all(ed.layers.filter((l) => l.type === 'text').map((l) => edLoadFont(l.font)));
         const out = document.createElement('canvas');
         out.width = ed.W;
         out.height = ed.H;
@@ -3150,6 +3224,7 @@ async function startSocialTab() {
         const saved = await edUpload(blob, 'video/webm', '.webm', st);
         const asset = { kind: 'video', label: 'video editato (webm)', url: saved.url, path: saved.path };
         pendingAssets.push(asset);
+        await registerMediaAsset(asset);
         if (ed.onSaved) { try { ed.onSaved(asset); } catch (e) { console.error('[admin] onSaved editor:', e); } }
         st.textContent = 'Video salvato ✓ in galleria (si collega al post quando lo salvi). Nota: formato webm.';
         toast('Video salvato in galleria.');
@@ -3295,7 +3370,11 @@ async function startSocialTab() {
             if (t.id === 'edTxtText') l.text = t.value;
             else if (t.id === 'edTxtSize') l.size = Number(t.value) / 1000;
             else if (t.id === 'edTxtColor') l.color = t.value;
-            else if (t.id === 'edTxtFont') l.font = t.value;
+            else if (t.id === 'edTxtFont') {
+                l.font = t.value;
+                t.style.fontFamily = edFontCss(l.font); // preview nella tendina stessa
+                edLoadFont(l.font).then(() => { if (ed) edDrawFinal(); });
+            }
             else if (t.id === 'edTxtWeight') l.weight = t.value;
             else if (t.id === 'edTxtOutline') l.outline = t.checked;
             else if (t.id === 'edGfxSize') l.w = Number(t.value) / 100;
@@ -3497,6 +3576,7 @@ async function startSocialTab() {
                     await uploadBytes(storageRef(storage, path), c.blob, { contentType: 'image/png' });
                     const savedUrl = await getDownloadURL(storageRef(storage, path));
                     pendingAssets.push({ kind: 'image', label: 'ritaglio ' + c.label.split(' — ')[0], url: savedUrl, path });
+                    registerMediaAsset({ kind: 'image', label: 'ritaglio ' + c.label.split(' — ')[0], url: savedUrl, path });
                     sv.textContent = '✓ In galleria';
                     toast('Ritaglio salvato in galleria (si collega al post quando salvi).');
                 } catch (err) {
@@ -3556,6 +3636,7 @@ async function startSocialTab() {
             await uploadBytes(storageRef(storage, path), blob, { contentType: 'video/webm' });
             const url = await getDownloadURL(storageRef(storage, path));
             pendingAssets.push({ kind: 'video', label: 'reel animato (webm)', url, path });
+            registerMediaAsset({ kind: 'video', label: 'reel animato (webm)', url, path });
             $('socReels').insertAdjacentHTML('beforeend', reelEntryHTML('reel animato (webm)', url, true));
             st.textContent = 'Reel pronto ✓ scaricalo per pubblicarlo (salvato in galleria quando salvi il post). Nota: IG/TikTok preferiscono mp4.';
         } catch (err) {
@@ -3581,6 +3662,7 @@ async function startSocialTab() {
             const url = res && res.data && res.data.url;
             if (!url) throw new Error('risposta senza URL');
             pendingAssets.push({ kind: 'video', label: 'video IA Veo (mp4)', url, path: res.data.path || '' });
+            registerMediaAsset({ kind: 'video', label: 'video IA Veo (mp4)', url, path: res.data.path || '' });
             $('socReels').insertAdjacentHTML('beforeend', reelEntryHTML('video IA Veo (mp4)', url, true));
             st.textContent = 'Video pronto ✓ pronto da scaricare in formato mp4.';
         } catch (err) {
@@ -3605,6 +3687,7 @@ async function startSocialTab() {
             await uploadBytes(storageRef(storage, path), file, { contentType: file.type });
             const url = await getDownloadURL(storageRef(storage, path));
             pendingAssets.push({ kind: 'video', label: 'video caricato', url, path });
+            registerMediaAsset({ kind: 'video', label: 'video caricato', url, path });
             $('socReels').insertAdjacentHTML('beforeend', reelEntryHTML('video caricato', url, true));
             st.textContent = 'Video caricato ✓';
         } catch (err) {
@@ -3873,6 +3956,11 @@ async function startSocialTab() {
             panel.innerHTML = '<div class="adm-inline-err">Errore nel caricamento dei post social.</div>';
         }
     );
+    unsubscribe.mediaReg = onSnapshot(
+        query(collection(db, 'mediaAssets'), orderBy('createdAt', 'desc')),
+        (snap) => { mediaReg = snap.docs.map((d) => ({ id: d.id, data: d.data() })); if (view === 'galleria') render(); },
+        (err) => console.error('[admin] mediaAssets snapshot error:', err)
+    );
 
     render();
 }
@@ -3896,6 +3984,7 @@ async function startMarketingTab() {
     let mkPosts = [];
     let mkCampaigns = [];
     let mkGfx = []; // libreria asset grafici (logo/sticker)
+    let mkMediaReg = []; // registro permanente mediaAssets
     let filter = 'all'; // all|post|evento|popup|media
     let wiz = null; // sessione wizard, vedi mkNewWizard()
 
@@ -3921,7 +4010,7 @@ async function startMarketingTab() {
             </div>
         </div>
         <div class="mk-hero">
-            <button class="adm-btn mk-hero-btn" data-mk-action="open-wizard" type="button">✨ Generazione grafiche</button>
+            <button class="adm-btn mk-hero-btn" data-mk-action="open-wizard" type="button" data-tip="Flusso guidato in 4 passi: tipo (post/evento/popup) → contenuti → media → riepilogo e pubblicazione.">✨ Generazione grafiche</button>
             <span class="adm-cell-muted">Post social, reel e video IA, immagini eventi, sfondi popup — con logo e testi animati.</span>
         </div>
         <div class="adm-subtabs">
@@ -3954,8 +4043,8 @@ async function startMarketingTab() {
             </div>
             ${assets ? `<div class="mk-assets">${assets}</div>` : '<div class="adm-cell-muted">Nessun asset collegato.</div>'}
             <div class="adm-gal-actions">
-                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="edit-item" data-type="post" data-id="${esc(p.id)}" type="button">Modifica nel wizard</button>
-                <button class="adm-btn adm-btn-danger adm-btn-sm" data-mk-action="del-item" data-type="post" data-id="${esc(p.id)}" data-label="${esc(d.title || '')}" type="button">Elimina</button>
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="edit-item" data-type="post" data-id="${esc(p.id)}" type="button" data-tip="Riapre il wizard compilato: lo stesso flusso guidato della creazione.">Modifica nel wizard</button>
+                <button class="adm-btn adm-btn-danger adm-btn-sm" data-mk-action="del-item" data-type="post" data-id="${esc(p.id)}" data-label="${esc(d.title || '')}" type="button" data-tip="Cancella il post (chiede conferma). Gli asset restano in galleria.">Elimina</button>
             </div>
         </div>`;
     }
@@ -3975,9 +4064,9 @@ async function startMarketingTab() {
                     <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="download" data-url="${esc(d.image)}" data-label="${esc(d.title || 'evento')}" type="button">Scarica</button>
                 </div></div></div>` : ''}
             <div class="adm-gal-actions">
-                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="edit-item" data-type="evento" data-id="${esc(ev.id)}" type="button">Modifica nel wizard</button>
-                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="toggle-active" data-type="evento" data-id="${esc(ev.id)}" type="button">${d.active ? 'Spegni' : 'Accendi'}</button>
-                <button class="adm-btn adm-btn-danger adm-btn-sm" data-mk-action="del-item" data-type="evento" data-id="${esc(ev.id)}" data-label="${esc(d.title || '')}" type="button">Elimina</button>
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="edit-item" data-type="evento" data-id="${esc(ev.id)}" type="button" data-tip="Riapre il wizard compilato (testi, data, immagine, asset).">Modifica nel wizard</button>
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="toggle-active" data-type="evento" data-id="${esc(ev.id)}" type="button" data-tip="Acceso = visibile sul sito; spento = nascosto ma conservato.">${d.active ? 'Spegni' : 'Accendi'}</button>
+                <button class="adm-btn adm-btn-danger adm-btn-sm" data-mk-action="del-item" data-type="evento" data-id="${esc(ev.id)}" data-label="${esc(d.title || '')}" type="button" data-tip="Cancella l’evento definitivamente (chiede conferma).">Elimina</button>
             </div>
         </div>`;
     }
@@ -3997,9 +4086,9 @@ async function startMarketingTab() {
                     <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="download" data-url="${esc(d.imageUrl)}" data-label="${esc(d.title || 'popup')}" type="button">Scarica</button>
                 </div></div></div>` : ''}
             <div class="adm-gal-actions">
-                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="edit-item" data-type="popup" data-id="${esc(pp.id)}" type="button">Modifica nel wizard</button>
-                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="toggle-active" data-type="popup" data-id="${esc(pp.id)}" type="button">${d.active ? 'Spegni' : 'Accendi'}</button>
-                <button class="adm-btn adm-btn-danger adm-btn-sm" data-mk-action="del-item" data-type="popup" data-id="${esc(pp.id)}" data-label="${esc(d.title || '')}" type="button">Elimina</button>
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="edit-item" data-type="popup" data-id="${esc(pp.id)}" type="button" data-tip="Riapre il wizard compilato (testo, sfondo, periodo, CTA).">Modifica nel wizard</button>
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="toggle-active" data-type="popup" data-id="${esc(pp.id)}" type="button" data-tip="Acceso = si mostra ai visitatori nel periodo impostato.">${d.active ? 'Spegni' : 'Accendi'}</button>
+                <button class="adm-btn adm-btn-danger adm-btn-sm" data-mk-action="del-item" data-type="popup" data-id="${esc(pp.id)}" data-label="${esc(d.title || '')}" type="button" data-tip="Cancella il popup definitivamente (chiede conferma).">Elimina</button>
             </div>
         </div>`;
     }
@@ -4017,6 +4106,11 @@ async function startMarketingTab() {
             if (seen.has(g.data.url)) return;
             seen.add(g.data.url);
             cells.push({ label: '🧩 libreria: ' + (g.data.name || ''), url: g.data.url, kind: 'image' });
+        });
+        mkMediaReg.forEach((m) => {
+            if (seen.has(m.data.url)) return;
+            seen.add(m.data.url);
+            cells.push({ label: m.data.label || 'media', url: m.data.url, kind: m.data.kind === 'video' ? 'video' : 'image' });
         });
         if (!cells.length) return '<div class="adm-empty">Ancora nessun media: genera qualcosa con il pulsante qui sopra.</div>';
         return `<div class="adm-gallery${galSizeClass()}">${cells.map((c) => `
@@ -4227,7 +4321,7 @@ async function startMarketingTab() {
             <div class="adm-group">
                 <label for="mkPostBrief">Didascalia <span class="adm-tip" tabindex="0" data-tip="Il testo del post; vale per tutte le piattaforme selezionate.">?</span></label>
                 <textarea id="mkPostBrief" rows="4" placeholder="Venerdì 3 ottobre riapre la Fonderia…">${esc(w.brief)}</textarea>
-                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-mk-action="wiz-copyai" type="button">🪄 Scrivila con l'IA</button>
+                <button class="adm-btn adm-btn-ai adm-btn-sm" data-mk-action="wiz-copyai" type="button" data-tip="Gemini scrive il testo partendo dal brief o dal titolo. Poi puoi modificarlo a mano.">🪄 Scrivila con l'IA</button>
                 <span id="mkCopyStatus" class="adm-cell-muted" role="status"></span>
             </div>
             <div class="adm-row">
@@ -4272,6 +4366,8 @@ async function startMarketingTab() {
             <div class="adm-group">
                 <label for="mkEvDesc">Descrizione</label>
                 <textarea id="mkEvDesc" rows="4">${esc(w.evDesc)}</textarea>
+                <button class="adm-btn adm-btn-ai adm-btn-sm" data-mk-action="wiz-evcopyai" type="button" data-tip="Gemini prepara tagline + descrizione dal titolo, data e ora che hai scritto sopra.">🪄 Tagline + descrizione con l'IA</button>
+                <span id="mkEvCopyStatus" class="adm-cell-muted" role="status"></span>
             </div>
             <div class="adm-checks"><label class="adm-check"><input id="mkEvActive" type="checkbox"${w.evActive ? ' checked' : ''}> Visibile sul sito</label></div>`;
         }
@@ -4285,6 +4381,8 @@ async function startMarketingTab() {
             <div class="adm-group">
                 <label for="mkPopBody">Testo</label>
                 <textarea id="mkPopBody" rows="3">${esc(w.popBody)}</textarea>
+                <button class="adm-btn adm-btn-ai adm-btn-sm" data-mk-action="wiz-popcopyai" type="button" data-tip="Gemini scrive il testo del popup dal titolo o dalle parole che hai già scritto.">🪄 Scrivilo con l'IA</button>
+                <span id="mkPopCopyStatus" class="adm-cell-muted" role="status"></span>
             </div>
             <div class="adm-row">
                 <div class="adm-group"><label for="mkPopStart">Visibile dal</label><input id="mkPopStart" type="date" value="${esc(w.popStart)}"></div>
@@ -4405,12 +4503,12 @@ async function startMarketingTab() {
                         <div class="mk-modal-title">${w.editId ? 'Modifica' : 'Generazione grafiche'}</div>
                         <div class="mk-steps">${MK_STEPS.map((s, i) => `<span class="mk-step-dot${w.step === i + 1 ? ' active' : ''}${w.step > i + 1 ? ' done' : ''}">${i + 1}. ${s}</span>`).join('')}</div>
                     </div>
-                    <button class="adm-btn adm-btn-ghost" data-mk-action="close-wizard" type="button">✕ Chiudi</button>
+                    <button class="adm-btn adm-btn-ghost" data-mk-action="close-wizard" type="button" data-tip="Chiudi senza salvare — i campi compilati vanno persi.">✕ Chiudi</button>
                 </div>
                 <div class="mk-modal-body">${mkWizardStepHTML()}</div>
                 <div class="mk-modal-foot">
                     ${w.step > 1 ? '<button class="adm-btn adm-btn-ghost" data-mk-action="wiz-back" type="button">← Indietro</button>' : '<span></span>'}
-                    ${w.step < 4 ? `<button class="adm-btn" data-mk-action="wiz-next" type="button"${canNext ? '' : ' disabled'}>Avanti →</button>` : '<button class="adm-btn" data-mk-action="wiz-save" type="button" id="mkSaveBtn">💾 Salva</button>'}
+                    ${w.step < 4 ? `<button class="adm-btn" data-mk-action="wiz-next" type="button"${canNext ? '' : ' disabled'} data-tip="Vai al passo successivo del wizard.">Avanti →</button>` : '<button class="adm-btn" data-mk-action="wiz-save" type="button" id="mkSaveBtn" data-tip="Pubblica/aggiorna subito: l’elemento compare nelle tab Eventi, Popup e Social.">💾 Salva</button>'}
                 </div>
             </div>
         </div>`;
@@ -4447,6 +4545,7 @@ async function startMarketingTab() {
             await uploadBytes(storageRef(storage, path), blob, { contentType: 'video/webm' });
             const url = await getDownloadURL(storageRef(storage, path));
             wiz.assets.push({ kind: 'video', label: 'reel animato (webm)', url, path });
+            registerMediaAsset({ kind: 'video', label: 'reel animato (webm)', url, path });
             mkHarvestStep();
             wiz.statusLine = 'Reel pronto ✓ (IG/TikTok preferiscono mp4, ma accettano webm).';
             mkPaintWizard();
@@ -4471,6 +4570,7 @@ async function startMarketingTab() {
             const url = res && res.data && res.data.url;
             if (!url) throw new Error('risposta senza URL');
             wiz.assets.push({ kind: 'video', label: 'video IA Veo (mp4)', url, path: res.data.path || '' });
+            registerMediaAsset({ kind: 'video', label: 'video IA Veo (mp4)', url, path: res.data.path || '' });
             wiz.statusLine = 'Video pronto ✓ formato mp4.';
         } catch (err) {
             console.error('[admin] mk veo error:', err);
@@ -4500,6 +4600,63 @@ async function startMarketingTab() {
             mkPaintWizard();
         } catch (err) {
             console.error('[admin] mk copyai error:', err);
+            const msg = (err && (err.details || err.message)) || String(err);
+            if (st) st.textContent = 'Non riuscita: ' + msg;
+            toast('Copia IA non riuscita: ' + msg, true);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    // Tagline+descrizione evento da Gemini (callable suggestEventCopy gia' usato
+    // nella tab Eventi): serve almeno il titolo.
+    async function mkEvCopyAI() {
+        if (!wiz) return;
+        mkHarvestStep();
+        const btn = panel.querySelector('[data-mk-action="wiz-evcopyai"]');
+        const st = $('mkEvCopyStatus');
+        if (!wiz.title) { toast('Scrivi prima il titolo dell\'evento: l\'IA parte da quello.', true); return; }
+        if (btn) btn.disabled = true;
+        if (st) st.textContent = 'L\'IA scrive…';
+        try {
+            const fn = httpsCallable(await getFunctionsInstance(), 'suggestEventCopy');
+            const res = await fn({ title: wiz.title, date: wiz.evDate, time: wiz.evTime });
+            const data = (res && res.data) || {};
+            if (!data.description) throw new Error('risposta senza descrizione');
+            if (data.tagline) wiz.evTagline = data.tagline;
+            wiz.evDesc = data.description;
+            if (st) st.textContent = 'Fatto ✓';
+            mkPaintWizard();
+        } catch (err) {
+            console.error('[admin] mk evcopyai error:', err);
+            const msg = (err && (err.details || err.message)) || String(err);
+            if (st) st.textContent = 'Non riuscita: ' + msg;
+            toast('Copia IA non riuscita: ' + msg, true);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    // Testo popup da Gemini (riuso generateSocialCopy, come mkCopyAI).
+    async function mkPopCopyAI() {
+        if (!wiz) return;
+        mkHarvestStep();
+        const btn = panel.querySelector('[data-mk-action="wiz-popcopyai"]');
+        const st = $('mkPopCopyStatus');
+        if ((wiz.popBody || wiz.title || '').trim().length < 5) { toast('Scrivi prima il titolo o qualche parola nel testo (anche solo l\'idea).', true); return; }
+        if (btn) btn.disabled = true;
+        if (st) st.textContent = 'L\'IA scrive…';
+        try {
+            const fn = httpsCallable(await getFunctionsInstance(), 'generateSocialCopy');
+            const res = await fn({ brief: wiz.popBody || wiz.title });
+            const data = (res && res.data) || {};
+            const text = data.ig || data.fb || data.tt || data.wa || '';
+            if (!text) throw new Error('risposta senza testo');
+            wiz.popBody = String(text).slice(0, 800);
+            if (st) st.textContent = 'Fatto ✓';
+            mkPaintWizard();
+        } catch (err) {
+            console.error('[admin] mk popcopyai error:', err);
             const msg = (err && (err.details || err.message)) || String(err);
             if (st) st.textContent = 'Non riuscita: ' + msg;
             toast('Copia IA non riuscita: ' + msg, true);
@@ -4667,6 +4824,10 @@ async function startMarketingTab() {
                 await mkSave();
             } else if (action === 'wiz-copyai') {
                 await mkCopyAI();
+            } else if (action === 'wiz-evcopyai') {
+                await mkEvCopyAI();
+            } else if (action === 'wiz-popcopyai') {
+                await mkPopCopyAI();
             } else if (action === 'wiz-aigen') {
                 mkHarvestStep();
                 // runAiImage chiama onUrl(url) a generazione riuscita: assegniamo
@@ -4777,6 +4938,11 @@ async function startMarketingTab() {
         query(collection(db, 'campaigns'), orderBy('name')),
         (snap) => { mkCampaigns = snap.docs.map((d) => ({ id: d.id, data: d.data() })); refreshIfIdle(); },
         (err) => console.error('[admin] mk campaigns snapshot error:', err)
+    );
+    unsubscribe.mkMediaReg = onSnapshot(
+        query(collection(db, 'mediaAssets'), orderBy('createdAt', 'desc')),
+        (snap) => { mkMediaReg = snap.docs.map((d) => ({ id: d.id, data: d.data() })); refreshIfIdle(); },
+        (err) => console.error('[admin] mk mediaAssets snapshot error:', err)
     );
     try {
         // libreria grafica: lettura one-shot (non serve live)
