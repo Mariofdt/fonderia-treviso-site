@@ -217,6 +217,12 @@ service cloud.firestore {
       allow read, create, update, delete: if isAdmin();
     }
 
+    // graphicAssets: libreria di asset grafici riutilizzabili (logo, sticker,
+    // cornici) per l'editor media. Solo admin; i file stanno in social/gfx/.
+    match /graphicAssets/{assetId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
     // ---------- default deny ----------
 
     match /{document=**} {

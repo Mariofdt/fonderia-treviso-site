@@ -13,7 +13,7 @@ import { onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signI
 import { collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot,
          query, where, orderBy, limit, serverTimestamp, increment }
     from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
-import { ref as storageRef, uploadBytes, getDownloadURL }
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject }
     from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js';
 import { httpsCallable }
     from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-functions.js';
@@ -2499,6 +2499,8 @@ async function startSocialTab() {
                 <div id="socBasePreview" class="adm-soc-base" hidden>
                     <img id="socBaseImg" alt="Immagine base">
                     <span id="socBaseLabel" class="adm-cell-muted"></span>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="edit-base" type="button"
+                        title="Apri l'editor: aggiungi logo, asset grafici e testi">✏️ Logo/Testi</button>
                 </div>
             </div>
 
@@ -2508,7 +2510,7 @@ async function startSocialTab() {
             </div>
 
             <div class="adm-group" id="socReelBlock" hidden>
-                <label>Reel verticale 8 secondi <span class="adm-tip" tabindex="0" data-tip="Due strade: reel animato fatto dal browser (gratis, formato webm — per IG/TikTok conviene il video IA o una conversione in mp4) oppure video vero generato da Veo 3 Fast (Google): circa 3 $ a video, addebitati sul progetto. Entrambi si possono scaricare e salvare in galleria.">?</span></label>
+                <label>Reel verticale 8 secondi <span class="adm-tip" tabindex="0" data-tip="Due strade: reel animato fatto dal browser (gratis, formato webm — per IG/TikTok conviene il video IA o una conversione in mp4) oppure video vero generato da Veo 3.1 Fast (Google): circa 1,50 € a video, addebitati sul progetto. Con ✏️ Editor aggiungi logo e testi animati a entrambi.">?</span></label>
                 <div class="adm-row">
                     <div class="adm-group">
                         <button type="button" id="socReelWebmBtn" class="adm-btn adm-btn-ghost">🎞 Reel animato (gratis, .webm)</button>
@@ -2664,6 +2666,7 @@ async function startSocialTab() {
                 </div>
                 <div class="adm-gal-actions">
                     <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="download" data-url="${esc(a.url)}" data-label="${esc(a.label)}" type="button">Scarica</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="open-editor" data-url="${esc(a.url)}" data-kind="${a.kind === 'video' ? 'video' : 'image'}" type="button">✏️ Editor</button>
                     ${a.kind === 'image'
                         ? `<button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="reuse" data-url="${esc(a.url)}" type="button">Riusa come base</button>` : ''}
                 </div>
@@ -2678,6 +2681,649 @@ async function startSocialTab() {
         <div class="adm-gallery">${cells || '<div class="adm-empty">Ancora nessun asset. Genera immagini e reel dalla vista Crea.</div>'}</div>`;
     }
 
+    /* ----------------------------- vista: asset grafici ----------------------------- */
+
+    // Libreria riutilizzabile per l'editor (logo, sticker, cornici): file su
+    // Storage social/gfx/, metadati in graphicAssets/ (solo admin, vedi rules).
+    let gfxAssets = null; // cache on-demand: [{ id, data }]
+
+    async function loadGfxAssets(force) {
+        if (gfxAssets && !force) return;
+        try {
+            const snap = await getDocs(query(collection(db, 'graphicAssets'), orderBy('name')));
+            gfxAssets = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
+        } catch (err) {
+            console.error('[admin] graphicAssets load error:', err);
+            toast('Libreria asset non caricabile: ' + (err.code || err.message), true);
+            if (!gfxAssets) gfxAssets = [];
+        }
+    }
+
+    function gfxListHTML() {
+        if (!gfxAssets) return '<div class="adm-empty">Caricamento libreria…</div>';
+        if (!gfxAssets.length) {
+            return '<div class="adm-empty">Libreria vuota: carica il logo e gli altri elementi grafici qui sopra. Ideali PNG/SVG con sfondo trasparente.</div>';
+        }
+        return gfxAssets.map((a) => `
+            <div class="adm-gal-cell adm-gfx-cell">
+                <span class="adm-gfx-preview"><img src="${esc(a.data.url)}" alt="${esc(a.data.name || '')}" loading="lazy"></span>
+                <input class="adm-input-sm adm-gfx-name" data-gfx-name="${esc(a.id)}" value="${esc(a.data.name || '')}">
+                <div class="adm-gal-actions">
+                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-soc-action="gfx-delete" data-id="${esc(a.id)}" type="button">Elimina</button>
+                </div>
+            </div>`).join('');
+    }
+
+    function assetHTML() {
+        return `
+        <div class="adm-panel-head">
+            <div>
+                <h2>Social — Asset grafici</h2>
+                <p class="adm-panel-lead">Libreria riutilizzabile dell'<strong>editor media</strong>: logo, sticker, cornici, badge. Caricali una volta e li trovi pronti da sovrapporre a qualunque immagine o video (pulsante ✏️ Editor). Ideali PNG/SVG con sfondo trasparente.</p>
+            </div>
+        </div>
+        <div class="adm-form">
+            <div class="adm-form-title">Nuovo asset grafico</div>
+            <div class="adm-row">
+                <div class="adm-group">
+                    <label for="gfxName">Nome</label>
+                    <input id="gfxName" type="text" maxlength="60" placeholder="Es. Logo oro">
+                </div>
+                <div class="adm-group">
+                    <label for="gfxUpload">File (PNG, SVG o WebP, max 3 MB)</label>
+                    <input id="gfxUpload" type="file" accept="image/png,image/svg+xml,image/webp">
+                    <span id="gfxStatus" class="adm-cell-muted" role="status"></span>
+                </div>
+            </div>
+        </div>
+        <h3 class="adm-subhead">Libreria (${gfxAssets ? gfxAssets.length : '…'})</h3>
+        <div id="gfxList" class="adm-gallery">${gfxListHTML()}</div>`;
+    }
+
+    async function onGfxUpload(e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const st = $('gfxStatus');
+        if (!/^image\/(png|svg\+xml|webp)$/.test(file.type)) { toast('Formato non supportato: usa PNG, SVG o WebP.', true); return; }
+        if (file.size > 3 * 1024 * 1024) { toast('File troppo grande (max 3 MB).', true); return; }
+        try {
+            st.textContent = 'Carico…';
+            const storage = await getStorageInstance();
+            const name = ($('gfxName').value.trim() || file.name.replace(/\.[a-z0-9]+$/i, '')).slice(0, 60);
+            const ext = file.type === 'image/svg+xml' ? '.svg' : file.type === 'image/webp' ? '.webp' : '.png';
+            const path = 'social/gfx/' + socSlug(name) + '-' + Date.now() + ext;
+            await uploadBytes(storageRef(storage, path), file, { contentType: file.type });
+            const url = await getDownloadURL(storageRef(storage, path));
+            await addDoc(collection(db, 'graphicAssets'), { name, url, path, ...auditCreate() });
+            gfxAssets = null;
+            st.textContent = 'Caricato ✓';
+            toast('Asset aggiunto alla libreria.');
+            render();
+        } catch (err) {
+            console.error('[admin] gfx upload error:', err);
+            st.textContent = 'Upload non riuscito: ' + (err.code || err.message);
+        }
+    }
+
+    /* ----------------------------- editor media (logo + testi) ----------------------------- */
+
+    // Layer sovrapposti a immagine o video. Coordinate/dimensioni in frazione
+    // del canvas (centro del layer) → l'export resta corretto a ogni risoluzione.
+    // Effetti animati solo su base video; su immagine l'export usa lo stato finale.
+    // Tutto client-side (canvas + drawImage + MediaRecorder): zero costi server.
+    const ED_EFFECTS = { none: 'Nessuno', fade: 'Comparsa', rise: 'Salita dal basso', pop: 'Zoom-pop', type: 'Macchina da scrivere' };
+    const ED_FONTS = { display: '"Space Grotesk", sans-serif', body: '"Inter", sans-serif' };
+
+    let ed = null; // sessione: { baseUrl, baseKind, returnView, media, W, H, layers, selId, drag, preview, saving, exporting }
+
+    function openEditor(url, kind, returnView) {
+        edCleanup();
+        ed = {
+            baseUrl: url, baseKind: kind, returnView: returnView || 'create',
+            media: null, W: 0, H: 0, layers: [], selId: null,
+            drag: null, preview: null, saving: false, exporting: false,
+        };
+        view = 'editor';
+        render();
+    }
+
+    function edCleanup() {
+        if (!ed) return;
+        if (ed.preview) cancelAnimationFrame(ed.preview);
+        if (ed.media && ed.media.tagName === 'VIDEO') { try { ed.media.pause(); } catch (e) { /* noop */ } }
+        ed = null;
+    }
+
+    function editorHTML() {
+        if (!ed) return '';
+        const isVideo = ed.baseKind === 'video';
+        return `
+        <div class="adm-panel-head">
+            <div>
+                <h2>Editor — ${isVideo ? 'video' : 'immagine'}</h2>
+                <p class="adm-panel-lead">Aggiungi <strong>asset grafici dalla libreria</strong> e <strong>testi</strong>, poi trascinali dove vuoi sull'anteprima. ${isVideo ? 'Assegna un effetto di entrata a ogni layer e guarda l\'anteprima animata: il salvataggio registra un video .webm con tutto incorporato (gratis, registrato dal browser).' : 'Il salvataggio esporta un PNG ad alta risoluzione.'} Il risultato finisce in <strong>Galleria</strong> e si collega al post quando lo salvi.</p>
+            </div>
+            <button class="adm-btn adm-btn-ghost" data-soc-action="close-editor" type="button">✕ Chiudi editor</button>
+        </div>
+        <div class="adm-editor">
+            <div class="adm-ed-stage">
+                <canvas id="edCanvas"></canvas>
+                <div class="adm-cell-muted">Trascina i layer dove vuoi · clicca un layer per modificarlo nel pannello</div>
+            </div>
+            <div class="adm-ed-panel">
+                <div class="adm-form-title">Aggiungi</div>
+                <div class="adm-ed-add">
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" id="edAddText" type="button">🔤 Testo</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" id="edAddGfx" type="button">🧩 Asset dalla libreria</button>
+                </div>
+                <div id="edGfxPicker" class="adm-ed-picker" hidden></div>
+                <div class="adm-form-title">Layer <span id="edLayerCount"></span></div>
+                <div id="edLayers" class="adm-ed-layers"><div class="adm-empty">Preparo l'editor…</div></div>
+                <div id="edSelPanel"></div>
+                <div class="adm-ed-actions">
+                    ${isVideo ? '<button class="adm-btn adm-btn-ghost adm-btn-sm" id="edPreviewBtn" type="button">▶️ Anteprima animata</button>' : ''}
+                    <button class="adm-btn" id="edSaveBtn" type="button">${isVideo ? '💾 Registra e salva (.webm)' : '💾 Salva PNG in galleria'}</button>
+                    <span id="edStatus" class="adm-cell-muted" role="status"></span>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    function edNewId() {
+        return 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    }
+
+    // Misure di un layer in pixel canvas [w, h] (testo misurato col font reale)
+    function edLayerSize(l, W, H) {
+        if (l.type === 'gfx') {
+            const ar = l.img && l.img.naturalWidth ? l.img.naturalHeight / l.img.naturalWidth : 1;
+            const w = l.w * W;
+            return [w, w * ar];
+        }
+        const fs = l.size * W;
+        const mctx = document.createElement('canvas').getContext('2d');
+        mctx.font = (l.weight === '700' ? '700 ' : '400 ') + fs + 'px ' + (ED_FONTS[l.font] || ED_FONTS.display);
+        let maxW = fs;
+        const lines = String(l.text || 'Testo').split('\n');
+        lines.forEach((ln) => { maxW = Math.max(maxW, mctx.measureText(ln).width); });
+        return [maxW, fs * 1.25 * lines.length];
+    }
+
+    // Stato di animazione di un layer al tempo tMs (null = stato finale)
+    function edLayerFx(l, idx, tMs) {
+        const st = { alpha: 1, dy: 0, scale: 1, chars: Infinity };
+        if (tMs == null || ed.baseKind !== 'video' || !l.effect || l.effect === 'none') return st;
+        const start = 400 + idx * 700; // entrata scalare per ordine layer
+        const c = Math.max(0, Math.min(1, (tMs - start) / 500));
+        const ease = 1 - Math.pow(1 - c, 3);
+        if (l.effect === 'fade') {
+            st.alpha = ease;
+        } else if (l.effect === 'rise') {
+            st.alpha = ease;
+            st.dy = (1 - ease) * 0.08;
+        } else if (l.effect === 'pop') {
+            st.alpha = c;
+            st.scale = 0.3 + 0.7 * ease;
+        } else if (l.effect === 'type') {
+            if (tMs < start) { st.chars = 0; } else {
+                const total = String(l.text || '').length;
+                st.chars = Math.floor(total * Math.min(1, (tMs - start) / Math.max(700, total * 45)));
+            }
+        }
+        return st;
+    }
+
+    function edDrawLayer(ctx, l, idx, W, H, tMs) {
+        const fx = edLayerFx(l, idx, tMs);
+        if (fx.alpha <= 0) { if (fx.chars === Infinity) return; }
+        ctx.save();
+        ctx.globalAlpha = fx.alpha;
+        ctx.translate(l.x * W, (l.y + fx.dy) * H);
+        ctx.rotate((l.rot * Math.PI) / 180);
+        if (l.type === 'gfx') {
+            const size = edLayerSize(l, W, H);
+            const w = size[0] * fx.scale;
+            const h = size[1] * fx.scale;
+            ctx.drawImage(l.img, -w / 2, -h / 2, w, h);
+        } else {
+            const fs = l.size * fx.scale * W;
+            ctx.font = (l.weight === '700' ? '700 ' : '400 ') + fs + 'px ' + (ED_FONTS[l.font] || ED_FONTS.display);
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const lines = String(l.text || 'Testo').split('\n');
+            let budget = fx.chars; // typewriter: caratteri totali mostrati
+            const lh = fs * 1.25;
+            const y0 = -((lines.length - 1) * lh) / 2;
+            lines.forEach((ln, li) => {
+                let shown = ln;
+                if (budget !== Infinity) {
+                    shown = ln.slice(0, Math.max(0, Math.min(ln.length, budget)));
+                    budget -= ln.length;
+                }
+                if (!shown) return;
+                if (l.outline !== false) {
+                    ctx.lineWidth = Math.max(1.5, fs / 10);
+                    ctx.lineJoin = 'round';
+                    ctx.strokeStyle = 'rgba(16,12,8,0.9)';
+                    ctx.strokeText(shown, 0, y0 + li * lh);
+                }
+                ctx.fillStyle = l.color || '#f5efe4';
+                ctx.fillText(shown, 0, y0 + li * lh);
+            });
+        }
+        ctx.restore();
+    }
+
+    // Frame completo: base in "contain" su sfondo scuro + tutti i layer.
+    // tMs === null → stato finale (editing ed export immagine; il bordo di
+    // selezione si vede solo qui, mai in anteprima video o export).
+    function edDrawFrame(ctx, tMs, W, H) {
+        ctx.fillStyle = '#141210';
+        ctx.fillRect(0, 0, W, H);
+        const m = ed.media;
+        if (m) {
+            const mw = ed.baseKind === 'video' ? (m.videoWidth || W) : (m.naturalWidth || W);
+            const mh = ed.baseKind === 'video' ? (m.videoHeight || H) : (m.naturalHeight || H);
+            const sc = Math.min(W / mw, H / mh);
+            ctx.drawImage(m, (W - mw * sc) / 2, (H - mh * sc) / 2, mw * sc, mh * sc);
+        }
+        ed.layers.forEach((l, i) => edDrawLayer(ctx, l, i, W, H, tMs));
+        if (tMs === null && !ed.exporting && ed.selId) {
+            const l = ed.layers.find((x) => x.id === ed.selId);
+            if (l) {
+                const size = edLayerSize(l, W, H);
+                ctx.save();
+                ctx.translate(l.x * W, l.y * H);
+                ctx.rotate((l.rot * Math.PI) / 180);
+                ctx.strokeStyle = '#d9a441';
+                ctx.lineWidth = Math.max(2, W * 0.004);
+                ctx.setLineDash([W * 0.012, W * 0.009]);
+                ctx.strokeRect(-size[0] / 2 - 6, -size[1] / 2 - 6, size[0] + 12, size[1] + 12);
+                ctx.restore();
+            }
+        }
+    }
+
+    function edDrawFinal() {
+        if (!ed) return;
+        const canvas = $('edCanvas');
+        if (!canvas || !canvas.width) return;
+        edDrawFrame(canvas.getContext('2d'), null, ed.W, ed.H);
+    }
+
+    function edHitTest(px, py) {
+        for (let i = ed.layers.length - 1; i >= 0; i--) {
+            const l = ed.layers[i];
+            const cx = l.x * ed.W;
+            const cy = l.y * ed.H;
+            const rad = (-l.rot * Math.PI) / 180;
+            const dx = px - cx;
+            const dy = py - cy;
+            const lx = dx * Math.cos(rad) - dy * Math.sin(rad);
+            const ly = dx * Math.sin(rad) + dy * Math.cos(rad);
+            const size = edLayerSize(l, ed.W, ed.H);
+            if (Math.abs(lx) <= size[0] / 2 + 4 && Math.abs(ly) <= size[1] / 2 + 4) return l;
+        }
+        return null;
+    }
+
+    function edPaintLayersUI() {
+        const box = $('edLayers');
+        if (!box || !ed) return;
+        const cnt = $('edLayerCount');
+        if (cnt) cnt.textContent = ed.layers.length ? '(' + ed.layers.length + ')' : '';
+        box.innerHTML = ed.layers.length
+            ? ed.layers.map((l) => `
+                <button type="button" class="adm-ed-layer${l.id === ed.selId ? ' active' : ''}" data-ed-sel="${l.id}">
+                    ${l.type === 'gfx' ? '🧩' : '🔤'} ${esc(l.type === 'gfx' ? (l.label || 'asset') : (l.text || 'Testo').replace(/\n/g, ' ').slice(0, 24))}
+                    ${ed.baseKind === 'video' && l.effect && l.effect !== 'none' ? ' <span class="adm-chip">' + esc(ED_EFFECTS[l.effect]) + '</span>' : ''}
+                </button>`).join('')
+            : '<div class="adm-cell-muted">Nessun layer: aggiungi un testo o un asset qui sopra.</div>';
+        edPaintSelPanel();
+    }
+
+    function edPaintSelPanel() {
+        const box = $('edSelPanel');
+        if (!box) return;
+        const l = ed && ed.layers.find((x) => x.id === ed.selId);
+        if (!l) { box.innerHTML = ''; return; }
+        const isVideo = ed.baseKind === 'video';
+        const effectOpts = Object.entries(ED_EFFECTS)
+            .filter(([k]) => l.type === 'text' || k !== 'type')
+            .map(([k, label]) => `<option value="${k}"${(l.effect || 'none') === k ? ' selected' : ''}>${label}</option>`).join('');
+        box.innerHTML = `
+            <div class="adm-form-title">Layer selezionato</div>
+            ${l.type === 'text' ? `
+            <div class="adm-group"><label>Testo</label><textarea id="edTxtText" rows="2">${esc(l.text)}</textarea></div>
+            <div class="adm-row">
+                <div class="adm-group"><label>Grandezza <span class="adm-cell-muted">${Math.round(l.size * 100)}%</span></label>
+                    <input id="edTxtSize" type="range" min="20" max="160" value="${Math.round(l.size * 1000)}"></div>
+                <div class="adm-group"><label>Colore</label><input id="edTxtColor" type="color" value="${esc(l.color || '#f5efe4')}"></div>
+            </div>
+            <div class="adm-row">
+                <div class="adm-group"><label>Font</label><select id="edTxtFont">
+                    <option value="display"${(l.font || 'display') === 'display' ? ' selected' : ''}>Space Grotesk (brand)</option>
+                    <option value="body"${l.font === 'body' ? ' selected' : ''}>Inter</option>
+                </select></div>
+                <div class="adm-group"><label>Grassetto</label><select id="edTxtWeight">
+                    <option value="700"${l.weight === '700' ? ' selected' : ''}>Sì</option>
+                    <option value="400"${l.weight !== '700' ? ' selected' : ''}>No</option>
+                </select></div>
+            </div>
+            <div class="adm-checks"><label class="adm-check"><input id="edTxtOutline" type="checkbox"${l.outline !== false ? ' checked' : ''}> Contorno scuro (leggibilità su foto)</label></div>
+            ` : `
+            <div class="adm-group"><label>Dimensione <span class="adm-cell-muted">${Math.round(l.w * 100)}% della larghezza</span></label>
+                <input id="edGfxSize" type="range" min="5" max="90" value="${Math.round(l.w * 100)}"></div>
+            `}
+            <div class="adm-group"><label>Rotazione <span class="adm-cell-muted">${Math.round(l.rot)}°</span></label>
+                <input id="edRot" type="range" min="-180" max="180" value="${Math.round(l.rot)}"></div>
+            ${isVideo ? `<div class="adm-group"><label>Effetto di entrata</label><select id="edEffect">${effectOpts}</select></div>` : ''}
+            <div class="adm-ed-layer-actions">
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-ed-order="up" type="button">↑ Sopra</button>
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-ed-order="down" type="button">↓ Sotto</button>
+                <button class="adm-btn adm-btn-danger adm-btn-sm" data-ed-delete="1" type="button">🗑 Elimina layer</button>
+            </div>`;
+    }
+
+    async function edUpload(blob, contentType, ext, st) {
+        st.textContent = 'Carico in galleria…';
+        const storage = await getStorageInstance();
+        let base = 'grafica';
+        if (editingId) {
+            const p = posts.find((x) => x.id === editingId);
+            if (p && p.data.title) base = p.data.title;
+        }
+        const path = 'social/edit-' + socSlug(base) + '-' + Date.now() + ext;
+        await uploadBytes(storageRef(storage, path), blob, { contentType });
+        const url = await getDownloadURL(storageRef(storage, path));
+        return { url, path };
+    }
+
+    async function edSaveImage(st) {
+        st.textContent = 'Esporto il PNG…';
+        const out = document.createElement('canvas');
+        out.width = ed.W;
+        out.height = ed.H;
+        ed.exporting = true; // niente bordo selezione nell'export
+        edDrawFrame(out.getContext('2d'), null, ed.W, ed.H);
+        ed.exporting = false;
+        const blob = await new Promise((res, rej) =>
+            out.toBlob((b) => (b ? res(b) : rej(new Error('export vuoto'))), 'image/png'));
+        const saved = await edUpload(blob, 'image/png', '.png', st);
+        pendingAssets.push({ kind: 'image', label: 'grafica editor (png)', url: saved.url, path: saved.path });
+        st.textContent = 'PNG salvato ✓ in galleria (si collega al post quando lo salvi).';
+        toast('Grafica salvata in galleria.');
+    }
+
+    async function edSaveVideo(st) {
+        const v = ed.media;
+        if (ed.preview) {
+            cancelAnimationFrame(ed.preview);
+            ed.preview = null;
+            const pb = $('edPreviewBtn');
+            if (pb) pb.textContent = '▶️ Anteprima animata';
+        }
+        v.pause();
+        v.loop = false;
+        const dur = Math.min(v.duration || 8, 15); // cap di sicurezza 15s
+        st.textContent = 'Registro il video con le sovrapposizioni…';
+        const out = document.createElement('canvas');
+        out.width = ed.W;
+        out.height = ed.H;
+        const ctx = out.getContext('2d');
+        const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+            ? 'video/webm;codecs=vp9' : 'video/webm';
+        const rec = new MediaRecorder(out.captureStream(30), { mimeType: mime, videoBitsPerSecond: 6000000 });
+        const chunks = [];
+        rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+        const stopped = new Promise((res) => { rec.onstop = () => res(); });
+        try { v.currentTime = 0; } catch (e) { /* noop */ }
+        await v.play();
+        rec.start(250);
+        await new Promise((resolve) => {
+            const tick = () => {
+                edDrawFrame(ctx, v.currentTime * 1000, ed.W, ed.H);
+                st.textContent = 'Registro… ' + Math.min(100, Math.round((v.currentTime / dur) * 100)) + '%';
+                if (v.ended || v.currentTime >= dur - 0.05) resolve();
+                else requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+        });
+        rec.stop();
+        await stopped;
+        v.pause();
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        if (!blob.size) throw new Error('registrazione vuota');
+        const saved = await edUpload(blob, 'video/webm', '.webm', st);
+        pendingAssets.push({ kind: 'video', label: 'video editato (webm)', url: saved.url, path: saved.path });
+        st.textContent = 'Video salvato ✓ in galleria (si collega al post quando lo salvi). Nota: formato webm.';
+        toast('Video salvato in galleria.');
+        edDrawFinal();
+    }
+
+    async function initEditor() {
+        if (!ed) return;
+        const canvas = $('edCanvas');
+        const st = $('edStatus');
+        try {
+            st.textContent = 'Carico la base…';
+            if (ed.baseKind === 'video') {
+                const v = document.createElement('video');
+                v.crossOrigin = 'anonymous'; // senza CORS il canvas diventa "tainted" e l'export fallisce
+                v.muted = true;
+                v.playsInline = true;
+                v.loop = true;
+                v.preload = 'auto';
+                v.src = ed.baseUrl;
+                await new Promise((res, rej) => {
+                    v.onloadeddata = res;
+                    v.onerror = () => rej(new Error('video non caricabile (rete o CORS)'));
+                });
+                try { v.currentTime = 0; } catch (e) { /* noop */ }
+                ed.media = v;
+                const vw = v.videoWidth || 720;
+                const vh = v.videoHeight || 1280;
+                ed.W = Math.min(720, vw);
+                ed.H = Math.round((ed.W * vh) / vw);
+            } else {
+                const img = await socLoadImage(ed.baseUrl);
+                ed.media = img;
+                const iw = img.naturalWidth || 1400;
+                const ih = img.naturalHeight || iw;
+                ed.W = Math.min(1400, iw);
+                ed.H = Math.round((ed.W * ih) / iw);
+            }
+            canvas.width = ed.W;
+            canvas.height = ed.H;
+            st.textContent = '';
+        } catch (err) {
+            console.error('[admin] editor init error:', err);
+            toast('Editor non apribile: ' + (err.code || err.message), true);
+            const rv = ed.returnView;
+            edCleanup();
+            view = rv;
+            render();
+            return;
+        }
+
+        edDrawFinal();
+        edPaintLayersUI();
+
+        const canvasPoint = (e) => {
+            const r = canvas.getBoundingClientRect();
+            return [(e.clientX - r.left) * (ed.W / r.width), (e.clientY - r.top) * (ed.H / r.height)];
+        };
+        canvas.addEventListener('pointerdown', (e) => {
+            if (!ed || ed.saving) return;
+            const pt = canvasPoint(e);
+            const hit = edHitTest(pt[0], pt[1]);
+            ed.selId = hit ? hit.id : null;
+            if (hit) {
+                ed.drag = { id: hit.id, sx: pt[0], sy: pt[1], ox: hit.x, oy: hit.y };
+                try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
+            }
+            edPaintLayersUI();
+            edDrawFinal();
+        });
+        canvas.addEventListener('pointermove', (e) => {
+            if (!ed || !ed.drag) return;
+            const l = ed.layers.find((x) => x.id === ed.drag.id);
+            if (!l) return;
+            const pt = canvasPoint(e);
+            l.x = Math.min(1.2, Math.max(-0.2, ed.drag.ox + (pt[0] - ed.drag.sx) / ed.W));
+            l.y = Math.min(1.2, Math.max(-0.2, ed.drag.oy + (pt[1] - ed.drag.sy) / ed.H));
+            edDrawFinal();
+        });
+        canvas.addEventListener('pointerup', () => { if (ed) ed.drag = null; });
+
+        $('edAddText').addEventListener('click', () => {
+            if (!ed) return;
+            const id = edNewId();
+            ed.layers.push({
+                id, type: 'text', text: 'Scrivi qui', x: 0.5, y: 0.5, rot: 0,
+                size: 0.06, color: '#f5efe4', weight: '700', outline: true, font: 'display',
+                effect: ed.baseKind === 'video' ? 'rise' : 'none',
+            });
+            ed.selId = id;
+            edPaintLayersUI();
+            edDrawFinal();
+        });
+
+        $('edAddGfx').addEventListener('click', async () => {
+            const box = $('edGfxPicker');
+            if (!box) return;
+            if (!box.hidden) { box.hidden = true; return; }
+            box.hidden = false;
+            box.innerHTML = '<div class="adm-cell-muted">Caricamento libreria…</div>';
+            await loadGfxAssets();
+            if (!box.isConnected || !ed) return;
+            box.innerHTML = gfxAssets.length
+                ? gfxAssets.map((a) => `
+                    <button type="button" class="adm-ed-pick" data-ed-addgfx="${esc(a.id)}" title="${esc(a.data.name || '')}">
+                        <img src="${esc(a.data.url)}" alt="${esc(a.data.name || '')}" loading="lazy">
+                        <span>${esc(a.data.name || '')}</span>
+                    </button>`).join('')
+                : '<div class="adm-cell-muted">Libreria vuota: carica logo e grafiche nella vista 🧩 Asset.</div>';
+        });
+        $('edGfxPicker').addEventListener('click', async (e) => {
+            const b = e.target.closest('[data-ed-addgfx]');
+            if (!b || !ed) return;
+            const a = gfxAssets.find((x) => x.id === b.dataset.edAddgfx);
+            if (!a) return;
+            try {
+                const img = await socLoadImage(a.data.url);
+                const id = edNewId();
+                ed.layers.push({ id, type: 'gfx', label: a.data.name || 'asset', img, x: 0.5, y: 0.5, rot: 0, w: 0.3, effect: 'none' });
+                ed.selId = id;
+                $('edGfxPicker').hidden = true;
+                edPaintLayersUI();
+                edDrawFinal();
+            } catch (err) {
+                toast('Asset non caricabile: ' + err.message, true);
+            }
+        });
+
+        $('edLayers').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-ed-sel]');
+            if (!b || !ed) return;
+            ed.selId = b.dataset.edSel;
+            edPaintLayersUI();
+            edDrawFinal();
+        });
+
+        $('edSelPanel').addEventListener('input', (e) => {
+            if (!ed) return;
+            const l = ed.layers.find((x) => x.id === ed.selId);
+            if (!l) return;
+            const t = e.target;
+            if (t.id === 'edTxtText') l.text = t.value;
+            else if (t.id === 'edTxtSize') l.size = Number(t.value) / 1000;
+            else if (t.id === 'edTxtColor') l.color = t.value;
+            else if (t.id === 'edTxtFont') l.font = t.value;
+            else if (t.id === 'edTxtWeight') l.weight = t.value;
+            else if (t.id === 'edTxtOutline') l.outline = t.checked;
+            else if (t.id === 'edGfxSize') l.w = Number(t.value) / 100;
+            else if (t.id === 'edRot') l.rot = Number(t.value);
+            else if (t.id === 'edEffect') l.effect = t.value;
+            else return;
+            edDrawFinal();
+        });
+        $('edSelPanel').addEventListener('click', (e) => {
+            if (!ed) return;
+            const ord = e.target.closest('[data-ed-order]');
+            const del = e.target.closest('[data-ed-delete]');
+            if (!ord && !del) return;
+            const i = ed.layers.findIndex((x) => x.id === ed.selId);
+            if (i < 0) return;
+            if (del) {
+                ed.layers.splice(i, 1);
+                ed.selId = null;
+            } else if (ord.dataset.edOrder === 'up' && i < ed.layers.length - 1) {
+                const tmp = ed.layers[i];
+                ed.layers[i] = ed.layers[i + 1];
+                ed.layers[i + 1] = tmp;
+            } else if (ord.dataset.edOrder === 'down' && i > 0) {
+                const tmp = ed.layers[i];
+                ed.layers[i] = ed.layers[i - 1];
+                ed.layers[i - 1] = tmp;
+            }
+            edPaintLayersUI();
+            edDrawFinal();
+        });
+
+        const prevBtn = $('edPreviewBtn');
+        if (prevBtn) prevBtn.addEventListener('click', () => {
+            if (!ed || ed.baseKind !== 'video') return;
+            const v = ed.media;
+            if (ed.preview) {
+                cancelAnimationFrame(ed.preview);
+                ed.preview = null;
+                v.pause();
+                prevBtn.textContent = '▶️ Anteprima animata';
+                edDrawFinal();
+                return;
+            }
+            try { v.currentTime = 0; } catch (e) { /* noop */ }
+            v.loop = true;
+            v.play().then(() => {
+                if (!ed) return;
+                prevBtn.textContent = '⏹ Ferma anteprima';
+                const tick = () => {
+                    if (!ed || !ed.preview) return;
+                    edDrawFrame(canvas.getContext('2d'), v.currentTime * 1000, ed.W, ed.H);
+                    ed.preview = requestAnimationFrame(tick);
+                };
+                ed.preview = requestAnimationFrame(tick);
+            }).catch((err) => {
+                toast('Anteprima non avviabile: ' + (err.message || err), true);
+            });
+        });
+
+        $('edSaveBtn').addEventListener('click', async () => {
+            if (!ed || ed.saving) return;
+            if (ed.preview) {
+                cancelAnimationFrame(ed.preview);
+                ed.preview = null;
+                try { ed.media.pause(); } catch (e) { /* noop */ }
+            }
+            ed.saving = true;
+            const btn = $('edSaveBtn');
+            btn.disabled = true;
+            try {
+                if (ed.baseKind === 'video') await edSaveVideo(st);
+                else await edSaveImage(st);
+            } catch (err) {
+                console.error('[admin] editor save error:', err);
+                st.textContent = 'Salvataggio non riuscito: ' + (err.code || err.message);
+                toast('Salvataggio non riuscito: ' + (err.code || err.message), true);
+            } finally {
+                ed.saving = false;
+                ed.exporting = false;
+                btn.disabled = false;
+            }
+        });
+    }
+
     /* ------------------------------- render + stato ------------------------------- */
 
     function render() {
@@ -2689,11 +3335,16 @@ async function startSocialTab() {
                     <button class="adm-subtab" data-view="create" type="button">✏️ Crea</button>
                     <button class="adm-subtab" data-view="campagna" type="button">📅 Campagna</button>
                     <button class="adm-subtab" data-view="galleria" type="button">🖼 Galleria</button>
+                    <button class="adm-subtab" data-view="asset" type="button">🧩 Asset</button>
                 </div>
                 <div id="socBody"></div>`;
         }
         const target = $('socBody');
-        target.innerHTML = view === 'create' ? createHTML() : view === 'campagna' ? campagnaHTML() : galleriaHTML();
+        target.innerHTML = view === 'create' ? createHTML()
+            : view === 'campagna' ? campagnaHTML()
+            : view === 'galleria' ? galleriaHTML()
+            : view === 'asset' ? assetHTML()
+            : editorHTML();
         if (view === 'create') {
             // ripristina immagine base e ritagli se già prodotti in questa sessione
             if (baseImageUrl) setBaseImage(baseImageUrl, true);
@@ -2705,6 +3356,14 @@ async function startSocialTab() {
             $('socReelWebmBtn') && $('socReelWebmBtn').addEventListener('click', onReelWebm);
             $('socReelVeoBtn') && $('socReelVeoBtn').addEventListener('click', onReelVeo);
             $('socVideoUpload') && $('socVideoUpload').addEventListener('change', onUploadVideo);
+        }
+        if (view === 'asset') {
+            loadGfxAssets().then(() => { if (view === 'asset') render(); });
+            $('gfxUpload').addEventListener('change', onGfxUpload);
+        }
+        if (view === 'editor') {
+            // evita doppia init se un render arriva da uno snapshot mentre edito
+            if (!$('edCanvas').width) initEditor();
         }
         if (view === 'campagna') loadGaCampaigns();
     }
@@ -2815,6 +3474,7 @@ async function startSocialTab() {
             <div class="adm-cell-muted">${esc(label)}</div>
             <div class="adm-gal-actions">
                 <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="download" data-url="${esc(url)}" data-label="${esc(label)}" type="button">Scarica</button>
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="open-editor" data-url="${esc(url)}" data-kind="${isVideo ? 'video' : 'image'}" type="button">✏️ Editor</button>
             </div>
         </div>`;
     }
@@ -2990,6 +3650,7 @@ async function startSocialTab() {
     panel.addEventListener('click', async (e) => {
         const sub = e.target.closest('.adm-subtab');
         if (sub) {
+            if (ed) edCleanup(); // uscire dall'editor ferma anteprima e video
             view = sub.dataset.view;
             render();
             return;
@@ -3039,6 +3700,29 @@ async function startSocialTab() {
                 const next = c.data.status === 'archived' ? 'active' : 'archived';
                 await updateDoc(doc(db, 'campaigns', id), { status: next, ...auditUpdate() });
                 toast(next === 'archived' ? 'Campagna archiviata.' : 'Campagna riattivata.');
+            } else if (action === 'edit-base') {
+                if (!baseImageUrl) { toast('Prima genera o carica un\'immagine base.', true); return; }
+                openEditor(baseImageUrl, 'image', 'create');
+            } else if (action === 'open-editor') {
+                openEditor(btn.dataset.url, btn.dataset.kind === 'video' ? 'video' : 'image', view);
+            } else if (action === 'close-editor') {
+                const rv = ed ? ed.returnView : 'create';
+                edCleanup();
+                view = rv;
+                render();
+            } else if (action === 'gfx-delete') {
+                const a = gfxAssets && gfxAssets.find((x) => x.id === id);
+                if (!a) return;
+                if (!confirm('Eliminare l\'asset "' + (a.data.name || '') + '" dalla libreria? Il file viene rimosso anche da Storage.')) return;
+                await deleteDoc(doc(db, 'graphicAssets', id));
+                // il file può essere già sparito da Storage (eliminato a mano): non bloccare
+                if (a.data.path) {
+                    try { await deleteObject(storageRef(await getStorageInstance(), a.data.path)); }
+                    catch (err) { if (!/object-not-found/.test(err.code || '')) throw err; }
+                }
+                gfxAssets = null;
+                render();
+                toast('Asset eliminato dalla libreria.');
             }
         } catch (err) {
             console.error('[admin] social action error:', err);
@@ -3061,6 +3745,18 @@ async function startSocialTab() {
         }
     });
     panel.addEventListener('focusout', async (e) => {
+        const gfxName = e.target.closest('[data-gfx-name]');
+        if (gfxName) {
+            const name = gfxName.value.trim().slice(0, 60);
+            try {
+                await updateDoc(doc(db, 'graphicAssets', gfxName.dataset.gfxName), { name, ...auditUpdate() });
+                gfxAssets = null; // invalida cache; il rename si vede al prossimo render
+                toast('Nome asset salvato.');
+            } catch (err) {
+                toast('Rinomina non riuscita: ' + (err.code || err.message), true);
+            }
+            return;
+        }
         const inp = e.target.closest('[data-soc-stat]');
         if (!inp) return;
         const key = inp.dataset.socStat; // views | likes
@@ -3099,8 +3795,9 @@ async function startSocialTab() {
     );
     unsubscribe.social = onSnapshot(
         query(collection(db, 'socialPosts'), orderBy('scheduledFor')),
-        // in vista Crea NON ridisegnare: cancellerebbe il form mentre scrivi
-        (snap) => { posts = snap.docs.map((d) => ({ id: d.id, data: d.data() })); if (view !== 'create') render(); },
+        // ridisegna SOLO nelle viste che leggono `posts`: in Crea cancellerebbe il
+        // form mentre scrivi, in Editor distruggerebbe canvas e layer in lavorazione
+        (snap) => { posts = snap.docs.map((d) => ({ id: d.id, data: d.data() })); if (view === 'campagna' || view === 'galleria') render(); },
         (err) => {
             console.error('[admin] socialPosts snapshot error:', err);
             panel.innerHTML = '<div class="adm-inline-err">Errore nel caricamento dei post social.</div>';

@@ -44,7 +44,7 @@ service firebase.storage {
     // Asset social (immagini ritagliate, reel, video Veo). I video delle
     // callable (generateReelVideo) scrivono via Admin SDK. Upload client:
     // solo admin — immagini fino a 3MB, video fino a 50MB (reel brevi).
-    match /social/{fileName} {
+    match /social/{allPaths=**} {
       allow read: if true;
       allow create, update: if isAdminUser()
         && request.resource != null
