@@ -303,8 +303,10 @@ exports.getGaStats = onCall(
       table('pagePath', 'screenPageViews', 8),
       table('sessionDefaultChannelGroup', 'sessions', 8),
       trend(),
-      // sessioni per campagna (link UTM dei post social): chiave = utm_campaign
-      table('sessionCampaign', 'sessions', 12),
+      // sessioni per campagna (link UTM dei post social): chiave = utm_campaign.
+      // Nome reale della dimensione GA4: sessionCampaignName ("sessionCampaign"
+      // non esiste → INVALID_ARGUMENT, verificato su API 15/09/26).
+      table('sessionCampaignName', 'sessions', 12),
     ]);
 
     return { last7, last30, topPages, topSources, daily, campaigns, generatedAt: new Date().toISOString() };
