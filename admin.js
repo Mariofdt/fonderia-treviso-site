@@ -5019,12 +5019,30 @@ function startStatsTab() {
 
     const body = panel.querySelector('#statsBody');
 
-    function kpi(label, v7, v30) {
+    // secondi → "1m 23s" / "45s"
+    function fmtDur(sec) {
+        const s = Math.round(Number(sec) || 0);
+        if (s < 60) return s + 's';
+        return Math.floor(s / 60) + 'm ' + String(s % 60).padStart(2, '0') + 's';
+    }
+
+    // delta % tra ultimi 7gg e i 7 precedenti → freccia colorata
+    function delta(cur, prev) {
+        if (!prev) return '';
+        const pct = Math.round(((cur - prev) / prev) * 100);
+        if (!isFinite(pct)) return '';
+        const cls = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
+        const arrow = pct > 0 ? '▲' : pct < 0 ? '▼' : '—';
+        return `<span class="adm-kpi-delta ${cls}" title="rispetto ai 7 giorni precedenti">${arrow} ${Math.abs(pct)}%</span>`;
+    }
+
+    function kpi(label, v7, v30, opts = {}) {
+        const fmt = opts.fmt || fmtNum;
         return `
-        <div class="adm-kpi">
+        <div class="adm-kpi"${opts.tip ? ` data-tip="${esc(opts.tip)}"` : ''}>
             <div class="adm-kpi-label">${label}</div>
-            <div class="adm-kpi-value">${fmtNum(v7)}</div>
-            <div class="adm-kpi-sub">ultimi 7 giorni · ${fmtNum(v30)} in 30 gg</div>
+            <div class="adm-kpi-value">${fmt(v7)}${opts.delta !== undefined ? delta(v7, opts.delta) : ''}</div>
+            <div class="adm-kpi-sub">ultimi 7 giorni · ${fmt(v30)} in 30 gg</div>
         </div>`;
     }
 
@@ -5054,16 +5072,54 @@ function startStatsTab() {
         return `<div class="adm-stats-block"><h3>Sessioni giornaliere (30 gg)</h3><div class="adm-trend">${cells}</div></div>`;
     }
 
+    // etichette leggibili per eventi GA4 e dispositivi
+    const EVENT_LABELS = {
+        page_view: 'Pagine viste', session_start: 'Inizio visita', first_visit: 'Prima visita',
+        scroll: 'Scorrimento pagina', user_engagement: 'Coinvolgimento', click: 'Click link esterni',
+        view_search_results: 'Ricerche nel sito', form_submit: 'Invio modulo',
+        prenota_apri: 'Apertura prenotazione', prenota_invia: 'Prenotazione inviata 🔥',
+        whatsapp_click: 'Click su WhatsApp', newsletter_signup: 'Iscrizione newsletter',
+        popup_view: 'Popup visualizzato', popup_cta: 'Click sul pulsante del popup',
+    };
+    const DEVICE_LABELS = { desktop: '💻 Computer', mobile: '📱 Smartphone', tablet: '📱 Tablet', smart_tv: '📺 Smart TV' };
+    const labelOf = (map) => (k) => map[k] || k;
+
+    function liveBlock(live) {
+        if (!live) return '';
+        const n = live.total || 0;
+        const pages = (live.pages || []).slice(0, 4)
+            .map((p) => `<span class="adm-live-page" title="${esc(p.label)}">${esc(p.label)} · ${p.value}</span>`)
+            .join('');
+        return `
+        <div class="adm-stats-live" data-tip="Persone sul sito negli ultimi 30 minuti, in tempo reale">
+            <span class="adm-live-dot"></span>
+            <strong>${fmtNum(n)}</strong> ${n === 1 ? 'persona online ora' : 'persone online ora'}
+            ${pages ? `<span class="adm-live-pages">${pages}</span>` : ''}
+        </div>`;
+    }
+
     function render(s) {
+        const prev = s.prev7 || {};
         body.innerHTML = `
+            ${liveBlock(s.live)}
             <div class="adm-kpi-grid">
-                ${kpi('Visite (sessioni)', s.last7.sessions, s.last30.sessions)}
-                ${kpi('Visitatori', s.last7.users, s.last30.users)}
-                ${kpi('Pagine viste', s.last7.pageviews, s.last30.pageviews)}
+                ${kpi('Visite (sessioni)', s.last7.sessions, s.last30.sessions, { delta: prev.sessions, tip: 'Quante volte qualcuno ha aperto il sito' })}
+                ${kpi('Visitatori', s.last7.users, s.last30.users, { delta: prev.users, tip: 'Persone diverse che hanno visitato il sito' })}
+                ${kpi('Nuovi visitatori', s.last7.newUsers, s.last30.newUsers, { tip: 'Persone che vedono il sito per la prima volta' })}
+                ${kpi('Pagine viste', s.last7.pageviews, s.last30.pageviews, { delta: prev.pageviews, tip: 'Totale pagine aperte' })}
+                ${kpi('Durata visita media', s.last7.avgDuration, s.last30.avgDuration, { fmt: fmtDur, tip: 'Quanto tempo resta in media un visitatore' })}
+                ${kpi('Rimbalzo', s.last7.bounceRate * 100, s.last30.bounceRate * 100, { fmt: (v) => Math.round(v) + '%', tip: 'Percentuale di chi vede una pagina sola e esce — più bassa è meglio' })}
             </div>
             ${trend(s.daily)}
-            ${bars('Pagine pi&ugrave; viste (30 gg)', s.topPages)}
-            ${bars('Da dove arrivano (30 gg)', s.topSources)}`;
+            <div class="adm-stats-pair">
+                ${bars('Pagine pi&ugrave; viste (30 gg)', s.topPages)}
+                ${bars('Da dove arrivano (30 gg)', s.topSources)}
+            </div>
+            <div class="adm-stats-pair">
+                ${bars('Dispositivi (30 gg)', s.devices, labelOf(DEVICE_LABELS))}
+                ${bars('Citt&agrave; (30 gg)', s.cities)}
+            </div>
+            ${bars('Azioni sul sito (30 gg)', s.events, labelOf(EVENT_LABELS))}`;
     }
 
     async function load() {

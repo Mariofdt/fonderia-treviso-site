@@ -75,6 +75,7 @@ function markDismissed(popup) {
 
 function showPopup(popup) {
     if (document.getElementById('fondPopup')) return;
+    if (window.fondTrack) window.fondTrack('popup_view', { popup_id: popup.id });
 
     const overlay = document.createElement('div');
     overlay.className = 'fond-popup-overlay';
@@ -112,6 +113,7 @@ function showPopup(popup) {
         btn.className = 'btn btn-primary fond-popup-cta';
         btn.textContent = popup.ctaLabel || 'Prenota ora';
         btn.addEventListener('click', () => {
+            if (window.fondTrack) window.fondTrack('popup_cta', { popup_id: popup.id, cta: 'booking' });
             close(popup);
             if (window.FonderiaBooking) {
                 window.FonderiaBooking.open({
@@ -131,7 +133,10 @@ function showPopup(popup) {
         a.target = '_blank';
         a.rel = 'noopener';
         a.textContent = popup.ctaLabel || 'Scopri di più';
-        a.addEventListener('click', () => close(popup));
+        a.addEventListener('click', () => {
+            if (window.fondTrack) window.fondTrack('popup_cta', { popup_id: popup.id, cta: 'link' });
+            close(popup);
+        });
         body.appendChild(a);
     }
 

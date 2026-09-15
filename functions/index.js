@@ -259,15 +259,28 @@ exports.getGaStats = onCall(
     const kpi = async (startDate) => {
       const res = await run({
         dateRanges: [{ startDate, endDate: 'today' }],
+        // nomi verificati contro l'API reale (15/09/26)
         metrics: [
           { name: 'sessions' },
           { name: 'totalUsers' },
           { name: 'screenPageViews' },
+          { name: 'newUsers' },
+          { name: 'averageSessionDuration' },   // secondi (float)
+          { name: 'bounceRate' },               // 0..1
+          { name: 'screenPageViewsPerSession' },
         ],
       });
       const row = res.rows && res.rows[0];
-      const nums = row ? row.metricValues.map((m) => Number(m.value || 0)) : [0, 0, 0];
-      return { sessions: nums[0], users: nums[1], pageviews: nums[2] };
+      const nums = row ? row.metricValues.map((m) => Number(m.value || 0)) : [0, 0, 0, 0, 0, 0, 0];
+      return {
+        sessions: nums[0],
+        users: nums[1],
+        pageviews: nums[2],
+        newUsers: nums[3],
+        avgDuration: nums[4],
+        bounceRate: nums[5],
+        pagesPerSession: nums[6],
+      };
     };
 
     const table = async (dimension, metric, limit) => {
@@ -297,19 +310,65 @@ exports.getGaStats = onCall(
       }));
     };
 
-    const [last7, last30, topPages, topSources, daily, campaigns] = await Promise.all([
-      kpi('7daysAgo'),
-      kpi('30daysAgo'),
-      table('pagePath', 'screenPageViews', 8),
-      table('sessionDefaultChannelGroup', 'sessions', 8),
-      trend(),
-      // sessioni per campagna (link UTM dei post social): chiave = utm_campaign.
-      // Nome reale della dimensione GA4: sessionCampaignName ("sessionCampaign"
-      // non esiste → INVALID_ARGUMENT, verificato su API 15/09/26).
-      table('sessionCampaignName', 'sessions', 12),
-    ]);
+    // Settimana precedente (7 giorni prima degli ultimi 7): per i delta ▲▼ in UI
+    const prev7 = async () => {
+      const res = await run({
+        dateRanges: [{ startDate: '14daysAgo', endDate: '8daysAgo' }],
+        metrics: [{ name: 'sessions' }, { name: 'totalUsers' }, { name: 'screenPageViews' }],
+      });
+      const row = res.rows && res.rows[0];
+      const nums = row ? row.metricValues.map((m) => Number(m.value || 0)) : [0, 0, 0];
+      return { sessions: nums[0], users: nums[1], pageviews: nums[2] };
+    };
 
-    return { last7, last30, topPages, topSources, daily, campaigns, generatedAt: new Date().toISOString() };
+    // Realtime: chi c'e' sul sito ORA (ultimi 30 min). Riga totale + top pagine.
+    // runRealtimeReport e' nello stesso client/scope del report standard.
+    const realtime = async () => {
+      try {
+        const [res] = await client.runRealtimeReport({
+          property: GA_PROPERTY,
+          dimensions: [{ name: 'unifiedScreenName' }],
+          metrics: [{ name: 'activeUsers' }],
+          limit: 6,
+        });
+        const rows = (res.rows || []).map((r) => ({
+          label: r.dimensionValues[0].value,
+          value: Number(r.metricValues[0].value || 0),
+        }));
+        return { total: rows.reduce((acc, r) => acc + r.value, 0), pages: rows };
+      } catch (err) {
+        // il realtime non deve mai far fallire l'intero report
+        logger.warn('GA realtime fallito', { message: String(err && err.message || err) });
+        return { total: 0, pages: [] };
+      }
+    };
+
+    const [last7, last30, prev, topPages, topSources, daily, campaigns, devices, cities, events, live] =
+      await Promise.all([
+        kpi('7daysAgo'),
+        kpi('30daysAgo'),
+        prev7(),
+        table('pagePath', 'screenPageViews', 8),
+        table('sessionDefaultChannelGroup', 'sessions', 8),
+        trend(),
+        // sessioni per campagna (link UTM dei post social): chiave = utm_campaign.
+        // Nome reale della dimensione GA4: sessionCampaignName ("sessionCampaign"
+        // non esiste → INVALID_ARGUMENT, verificato su API 15/09/26).
+        table('sessionCampaignName', 'sessions', 12),
+        table('deviceCategory', 'sessions', 5),
+        table('city', 'sessions', 8),
+        // eventi GA4 (automatici + custom del sito: prenota_*, whatsapp_click,
+        // newsletter_signup, popup_* — vedi track.js lato sito)
+        table('eventName', 'eventCount', 12),
+        realtime(),
+      ]);
+
+    return {
+      last7, last30, prev7: prev,
+      topPages, topSources, daily, campaigns,
+      devices, cities, events, live,
+      generatedAt: new Date().toISOString(),
+    };
   }
 );
 

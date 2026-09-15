@@ -976,6 +976,74 @@ html { font-size: 17.5px; }
     opacity: 0.85;
 }
 
+/* delta rispetto alla settimana precedente */
+.adm-kpi-delta {
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+.adm-kpi-delta.up { color: #7fc98f; }
+.adm-kpi-delta.down { color: #e08d8a; }
+.adm-kpi-delta.flat { color: var(--color-text-muted); }
+
+/* badge "chi è online ora" */
+.adm-stats-live {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    background: var(--color-surface);
+    border: 1px solid rgba(127, 201, 143, 0.35);
+    border-radius: 12px;
+    padding: 14px 20px;
+    margin-bottom: 18px;
+    font-size: 0.95rem;
+}
+.adm-stats-live strong {
+    color: #7fc98f;
+    font-size: 1.2rem;
+}
+.adm-live-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #7fc98f;
+    animation: admLivePulse 1.6s ease-in-out infinite;
+}
+@keyframes admLivePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(127, 201, 143, 0.5); }
+    50% { box-shadow: 0 0 0 7px rgba(127, 201, 143, 0); }
+}
+.adm-live-pages {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-left: auto;
+}
+.adm-live-page {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    background: rgba(240, 235, 227, 0.06);
+    border-radius: 999px;
+    padding: 4px 12px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* due blocchi affiancati su schermi larghi, impilati su mobile */
+.adm-stats-pair {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+}
+@media (min-width: 900px) {
+    .adm-stats-pair { grid-template-columns: 1fr 1fr; }
+}
+
 .adm-stats-err {
     font-size: 0.82rem;
     color: #e08d8a;

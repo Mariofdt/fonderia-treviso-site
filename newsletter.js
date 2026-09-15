@@ -41,6 +41,7 @@ function initNewsletter() {
                 consentAt: fs.serverTimestamp()
             });
             form.reset();
+            if (window.fondTrack) window.fondTrack('newsletter_signup');
             setMsg('Iscrizione confermata. Benvenuto nella famiglia Fonderia!', 'ok');
         } catch (err) {
             // Le rules sono append-only: docId esistente = permission-denied

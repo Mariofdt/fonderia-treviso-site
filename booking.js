@@ -34,6 +34,7 @@ window.FonderiaBooking = {
 function openBookingModal() {
     const overlay = document.getElementById('bookingOverlay');
     if (!overlay) return;
+    if (window.fondTrack) window.fondTrack('prenota_apri');
     overlay.classList.add('active');
     document.body.style.overflow = 'hidden';
     // Set min date to today
@@ -129,6 +130,11 @@ Attendo conferma, grazie! 🔥`;
         saveBookingToFirestore({ name, date, time, guests, service, type, eventTitle, email, phone, note, source });
 
         const waUrl = 'https://wa.me/393204137183?text=' + encodeURIComponent(msg);
+        // GA4: conversione chiave del sito (+ click WA che sfugge alla delega di track.js)
+        if (window.fondTrack) {
+            window.fondTrack('prenota_invia', { service: String(service).toLowerCase(), source });
+            window.fondTrack('whatsapp_click', { source: 'booking_form' });
+        }
         window.open(waUrl, '_blank');
         closeBookingModal();
     });
