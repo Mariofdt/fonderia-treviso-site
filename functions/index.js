@@ -205,11 +205,16 @@ exports.onBookingCreated = onDocumentCreated(
  *
  * Le credenziali NON sono nel codice: la function gira con il service
  * account ga-stats@fonderia-treviso.iam.gserviceaccount.com (ADC) che
- * deve essere aggiunto come LETTORE sulla proprietà GA4 4135131259
+ * deve essere aggiunto come LETTORE sulla proprietà GA4 336676964
  * (GA → Amministrazione → Gestione accessi proprietà).
+ *
+ * NOTA property id: il measurement id del sito e' G-MWG860XDK9, che vive
+ * sotto la proprieta' 336676964 ("fonderia_ag4 - GA4", account Fonderia
+ * 179534124) — NON 4135131259 (config iniziale errata, fix 15/09/26 dopo
+ * verifica via Admin API sui data stream dell'account).
  * ------------------------------------------------------------------ */
 
-const GA_PROPERTY = 'properties/4135131259';
+const GA_PROPERTY = 'properties/336676964';
 const GA_SA = 'ga-stats@fonderia-treviso.iam.gserviceaccount.com';
 
 // Gli utenti admin vivono in adminUsers/<email-lowercase> (status active).
