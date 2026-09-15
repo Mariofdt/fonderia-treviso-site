@@ -343,7 +343,8 @@ exports.getGaStats = onCall(
       }
     };
 
-    const [last7, last30, prev, topPages, topSources, daily, campaigns, devices, cities, events, live] =
+    const [last7, last30, prev, topPages, topSources, daily, campaigns, devices, cities, events, live,
+      sourcesDetail, landingPages, newVsReturning, byHour, byDay] =
       await Promise.all([
         kpi('7daysAgo'),
         kpi('30daysAgo'),
@@ -358,15 +359,23 @@ exports.getGaStats = onCall(
         table('deviceCategory', 'sessions', 5),
         table('city', 'sessions', 8),
         // eventi GA4 (automatici + custom del sito: prenota_*, whatsapp_click,
-        // newsletter_signup, popup_* — vedi track.js lato sito)
-        table('eventName', 'eventCount', 12),
+        // newsletter_signup, popup_* — vedi track.js lato sito).
+        // Limite alto perche' il funnel in UI filtra i custom da questa lista.
+        table('eventName', 'eventCount', 40),
         realtime(),
+        // ---- dettagli extra (15/09/26, nomi verificati via REST) ----
+        table('sessionSource', 'sessions', 10),              // instagram.com, google, facebook...
+        table('landingPagePlusQueryString', 'sessions', 8),  // prima pagina vista nella visita
+        table('newVsReturning', 'sessions', 3),              // new / returning
+        table('hour', 'sessions', 24),                       // ore 0-23
+        table('dayOfWeek', 'sessions', 7),                   // 0=dom .. 6=sab
       ]);
 
     return {
       last7, last30, prev7: prev,
       topPages, topSources, daily, campaigns,
       devices, cities, events, live,
+      sourcesDetail, landingPages, newVsReturning, byHour, byDay,
       generatedAt: new Date().toISOString(),
     };
   }

@@ -1044,6 +1044,28 @@ html { font-size: 17.5px; }
     .adm-stats-pair { grid-template-columns: 1fr 1fr; }
 }
 
+/* funnel prenotazioni */
+.adm-funnel-fill {
+    background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+}
+.adm-funnel-pct {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    margin-left: 6px;
+}
+
+/* barre orarie (24 colonne) */
+.adm-hour-bar {
+    background: var(--color-primary);
+}
+.adm-hour-legend {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    margin-top: 6px;
+}
+
 .adm-stats-err {
     font-size: 0.82rem;
     color: #e08d8a;

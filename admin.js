@@ -5098,8 +5098,59 @@ function startStatsTab() {
         </div>`;
     }
 
+    const NEWRET_LABELS = { new: '🆕 Prima visita', returning: '🔁 Di ritorno' };
+    const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab']; // GA4: 0=domenica
+
+    // Funnel popup → prenotazione, calcolato dai conteggi eventi (30 gg)
+    function funnel(events) {
+        const get = (n) => {
+            const r = (events || []).find((e) => e.label === n);
+            return r ? r.value : 0;
+        };
+        const steps = [
+            ['popup_view', 'Popup visualizzato'],
+            ['popup_cta', 'Click sul pulsante del popup'],
+            ['prenota_apri', 'Prenotazione aperta'],
+            ['prenota_invia', 'Prenotazione inviata 🔥'],
+        ];
+        if (!steps.some(([k]) => get(k) > 0)) {
+            return `<div class="adm-stats-block" data-tip="Il percorso: chi vede il popup → chi clicca → chi prenota"><h3>Funnel prenotazioni (30 gg)</h3><div class="adm-empty">Ancora nessuna azione tracciata: apparir&agrave; non appena i visitatori useranno popup e prenotazioni.</div></div>`;
+        }
+        const first = Math.max(get('popup_view'), get('prenota_apri'), 1);
+        const rows = steps.map(([k, label]) => {
+            const v = get(k);
+            const pct = Math.round((v / first) * 100);
+            return `
+            <div class="adm-bar-row">
+                <span class="adm-bar-label">${label}</span>
+                <span class="adm-bar-track"><span class="adm-bar-fill adm-funnel-fill" style="width:${Math.max(2, Math.min(100, pct))}%"></span></span>
+                <span class="adm-bar-value">${fmtNum(v)} <span class="adm-funnel-pct">${Math.min(100, pct)}%</span></span>
+            </div>`;
+        }).join('');
+        return `<div class="adm-stats-block" data-tip="Ogni riga mostra quanti passano al passo successivo rispetto all'ingresso del funnel"><h3>Funnel prenotazioni (30 gg)</h3>${rows}</div>`;
+    }
+
+    // Sessioni per ora del giorno (0-23): barre mini
+    function hourly(byHour) {
+        if (!byHour || !byHour.length) return '';
+        const vals = Array.from({ length: 24 }, (_, h) => {
+            const r = byHour.find((x) => Number(x.label) === h);
+            return r ? r.value : 0;
+        });
+        const max = Math.max(...vals, 1);
+        const cells = vals.map((v, h) => `
+            <div class="adm-trend-col" title="Ore ${String(h).padStart(2, '0')}:00 — ${fmtNum(v)} sessioni">
+                <span class="adm-trend-bar adm-hour-bar" style="height:${Math.max(3, Math.round((v / max) * 100))}%"></span>
+            </div>`).join('');
+        return `<div class="adm-stats-block" data-tip="A che ora la gente visita il sito (mezzanotte a sinistra, 23 a destra)"><h3>A che ora ti cercano (30 gg · 0&rarr;23)</h3><div class="adm-trend">${cells}</div>
+            <div class="adm-hour-legend"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div></div>`;
+    }
+
     function render(s) {
         const prev = s.prev7 || {};
+        const byDaySorted = (s.byDay || [])
+            .slice()
+            .sort((a, b) => ((Number(a.label) + 6) % 7) - ((Number(b.label) + 6) % 7)); // Lun..Dom
         body.innerHTML = `
             ${liveBlock(s.live)}
             <div class="adm-kpi-grid">
@@ -5111,15 +5162,25 @@ function startStatsTab() {
                 ${kpi('Rimbalzo', s.last7.bounceRate * 100, s.last30.bounceRate * 100, { fmt: (v) => Math.round(v) + '%', tip: 'Percentuale di chi vede una pagina sola e esce — più bassa è meglio' })}
             </div>
             ${trend(s.daily)}
+            ${funnel(s.events)}
             <div class="adm-stats-pair">
                 ${bars('Pagine pi&ugrave; viste (30 gg)', s.topPages)}
-                ${bars('Da dove arrivano (30 gg)', s.topSources)}
+                ${bars('Dove entrano nel sito (30 gg)', s.landingPages, (l) => l === '/' ? '🏠 Home' : l)}
+            </div>
+            <div class="adm-stats-pair">
+                ${bars('Canali (30 gg)', s.topSources, labelOf({ 'Organic Search': '🔍 Google (ricerca)', 'Direct': '🔗 Diretto', 'Organic Social': '📱 Social', Referral: '🔗 Altri siti', 'Paid Social': '📢 Ads social' }))}
+                ${bars('Da quale sito/app (30 gg)', s.sourcesDetail, (l) => l === '(direct)' ? '🔗 Digitato diretto / app' : l)}
             </div>
             <div class="adm-stats-pair">
                 ${bars('Dispositivi (30 gg)', s.devices, labelOf(DEVICE_LABELS))}
-                ${bars('Citt&agrave; (30 gg)', s.cities)}
+                ${bars('Nuovi vs di ritorno (30 gg)', s.newVsReturning, labelOf(NEWRET_LABELS))}
             </div>
-            ${bars('Azioni sul sito (30 gg)', s.events, labelOf(EVENT_LABELS))}`;
+            <div class="adm-stats-pair">
+                ${bars('Citt&agrave; (30 gg)', s.cities, (l) => l === '(not set)' ? '(non rilevata)' : l)}
+                ${bars('Giorno della settimana (30 gg)', byDaySorted.map((r) => ({ ...r, label: DAY_LABELS[Number(r.label)] || r.label })))}
+            </div>
+            ${hourly(s.byHour)}
+            ${bars('Tutte le azioni sul sito (30 gg)', (s.events || []).slice(0, 12), labelOf(EVENT_LABELS))}`;
     }
 
     async function load() {
