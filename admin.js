@@ -2279,7 +2279,7 @@ function startUsersTab() {
  * (programmazione con stato, link UTM e metriche), Galleria (tutti gli asset
  * prodotti, scaricabili e riusabili). Dati: campaigns/ e socialPosts/
  * (solo admin, vedi firestore.rules), file su Storage social/.
- * Costo video IA indicato sul bottone: Veo 3 Fast 8s ≈ 3 $ lato Google. */
+ * Costo video IA indicato sul bottone: Veo 3.1 Fast 8s ≈ 1,20 $ lato Google. */
 
 const SOC_PLATFORMS = { fb: 'Facebook', ig: 'Instagram', wa: 'WhatsApp', tt: 'TikTok' };
 const SOC_STATUSES = { draft: 'Bozza', scheduled: 'Programmato', published: 'Pubblicato' };
@@ -2515,7 +2515,7 @@ async function startSocialTab() {
                         <div class="adm-cell-note">Zoom cinematografico sulla tua immagine con titolo e logo. Attendi ~10 s.</div>
                     </div>
                     <div class="adm-group">
-                        <button type="button" id="socReelVeoBtn" class="adm-btn adm-btn-ghost adm-btn-ai">🎬 Video IA Veo 8s — costo ≈ 3 €</button>
+                        <button type="button" id="socReelVeoBtn" class="adm-btn adm-btn-ghost adm-btn-ai">🎬 Video IA Veo 8s — costo ≈ 1,50 €</button>
                         <div class="adm-cell-note">Video vero da descrizione + immagine base come primo frame. Max 4 video/ora. Attendi 1-3 min.</div>
                         <input id="socVeoPrompt" type="text" placeholder="Movimento del video, es: camera lenta sul bancone con spillatura della birra">
                     </div>
@@ -2851,7 +2851,7 @@ async function startSocialTab() {
         const btn = $('socReelVeoBtn');
         const st = $('socReelStatus');
         btn.disabled = true;
-        st.textContent = 'Veo sta generando il video (1-3 minuti, costo ≈ 3 € addebitato al progetto)…';
+        st.textContent = 'Veo sta generando il video (1-3 minuti, costo ≈ 1,50 € addebitato al progetto)…';
         try {
             const fn = httpsCallable(await getFunctionsInstance(), 'generateReelVideo');
             const res = await fn({ prompt, imageUrl: baseImageUrl });

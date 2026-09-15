@@ -633,23 +633,30 @@ exports.generateSocialCopy = onCall(
 );
 
 /* ------------------------------------------------------------------ *
- * generateReelVideo — video verticale via Veo 3 Fast su Vertex AI.
+ * generateReelVideo — video verticale via Veo 3.1 Fast su Vertex AI.
  *
- * Callable: assertAdmin. Modello: veo-3.0-fast-generate-001, location
- * global (disponibilita' verificata 2026-09-15: predictLongRunning con
- * payload vuoto risponde 400 "Empty instances" = endpoint attivo).
+ * Callable: assertAdmin. Modello: veo-3.1-fast-generate-001, location
+ * us-central1 (disponibilita' verificata 15/09/26 con generazione reale;
+ * veo-2.0/3.0-* spenti da Google il 30/06/26, "global" 404 per 3.1).
  * Flusso: predictLongRunning → polling fetchPredictOperation ogni 10s
  * (max ~7min) → bytes base64 → Storage social/<uuid>.mp4 → URL pubblico.
  * Input: { prompt, imageUrl? } — imageUrl (URL Storage pubblico, tipico
  * output di generateImage) fa da primo frame (image-to-video).
- * Rate limit: max 4 video/ora per admin (costo ~$0.40/sec → 8s ≈ $3).
+ * Rate limit: max 4 video/ora per admin (costo Veo 3.1 Fast ~$0.15/sec → 8s ≈ $1.20).
  * NOTA costi: il prezzo indicativo va mostrato sul bottone in admin.
  * ------------------------------------------------------------------ */
 
-const VEO_MODEL = 'veo-3.0-fast-generate-001';
+const VEO_MODEL = 'veo-3.1-fast-generate-001';
+// us-central1 regionale: su "global" Veo 3.1 risponde 404 "model not found"
+// (verificato 15/09/26). I modelli veo-2.0/3.0-* sono stati spenti il 30/06/26
+// → usare esclusivamente veo-3.1-*. GOTCHA: predictLongRunning con instances
+// vuote risponde 400 "Empty instances" ANCHE per modelli spenti/inaccessibili
+// (validazione prima della risoluzione modello) → non dimostra disponibilità:
+// il vero probe e' una chiamata con prompt reale (fattura ~1,5 $ a 8s).
+// Prezzo Veo 3.1 Fast ≈ $0.15/sec → 8s ≈ $1.20 (era ~$3 con 3.0).
 const VEO_BASE =
-  'https://aiplatform.googleapis.com/v1/projects/fonderia-treviso' +
-  '/locations/global/publishers/google/models/' + VEO_MODEL;
+  'https://us-central1-aiplatform.googleapis.com/v1/projects/fonderia-treviso' +
+  '/locations/us-central1/publishers/google/models/' + VEO_MODEL;
 const REEL_GEN_HOURLY_CAP = 4;
 const REEL_POLL_MAX_MS = 7 * 60 * 1000;
 
