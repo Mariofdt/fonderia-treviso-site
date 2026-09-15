@@ -2329,9 +2329,13 @@ async function socDownload(url, filename) {
 async function socLoadImage(url) {
     const img = new Image();
     img.crossOrigin = 'anonymous';
+    // Timeout obbligatorio: se la rete pianta il fetch ne' onload ne' onerror
+    // arrivano, e senza timeout la promise resta pending per sempre (l'editor
+    // restava congelato su "Preparo l'editor...").
     await new Promise((res, rej) => {
-        img.onload = res;
-        img.onerror = () => rej(new Error('immagine non caricabile'));
+        const timer = setTimeout(() => rej(new Error('timeout caricamento immagine (rete o URL non piu\' valida)')), 45000);
+        img.onload = () => { clearTimeout(timer); res(); };
+        img.onerror = () => { clearTimeout(timer); rej(new Error('immagine non caricabile')); };
         img.src = url;
     });
     return img;
@@ -3139,8 +3143,9 @@ async function startSocialTab() {
                 v.preload = 'auto';
                 v.src = ed.baseUrl;
                 await new Promise((res, rej) => {
-                    v.onloadeddata = res;
-                    v.onerror = () => rej(new Error('video non caricabile (rete o CORS)'));
+                    const timer = setTimeout(() => rej(new Error('timeout caricamento video (rete o URL non piu\' valida)')), 45000);
+                    v.onloadeddata = () => { clearTimeout(timer); res(); };
+                    v.onerror = () => { clearTimeout(timer); rej(new Error('video non caricabile (rete o CORS)')); };
                 });
                 try { v.currentTime = 0; } catch (e) { /* noop */ }
                 ed.media = v;
@@ -3388,8 +3393,10 @@ async function startSocialTab() {
             $('gfxUpload').addEventListener('change', onGfxUpload);
         }
         if (view === 'editor') {
-            // evita doppia init se un render arriva da uno snapshot mentre edito
-            if (!$('edCanvas').width) initEditor();
+            // Guardia sul flag di sessione, NON su canvas.width: un <canvas>
+            // senza attributo width vale 300 → `$('edCanvas').width` e' SEMPRE
+            // truthy e initEditor() non partiva mai ("Preparo l'editor..." fisso).
+            if (ed && !ed.initStarted && !ed.media) { ed.initStarted = true; initEditor(); }
         }
         if (view === 'campagna') loadGaCampaigns();
     }
