@@ -1,7 +1,8 @@
 /**
  * admin.js — Area Gestionale Fonderia Treviso
- * Magic link auth + whitelist config/admin → tab Eventi / Popup / Prenotazioni /
- * Newsletter / Promozioni / Badge / Statistiche.
+ * Magic link auth + registro adminUsers/<email> (owner/editor) → tab Eventi /
+ * Popup / Prenotazioni / Newsletter / Promozioni / Badge / Statistiche /
+ * Utenti (solo owner).
  * Dipende da firebase-init.js (getDb/getAuthInstance/getStorageInstance) e
  * firebase-config.js (window.FB_CONFIG), caricati da admin.html.
  */
@@ -44,13 +45,30 @@ const els = {
         promos: $('tab-promos'),
         badges: $('tab-badges'),
         stats: $('tab-stats'),
+        users: $('tab-users'),
     },
 };
 
-let unsubscribe = { events: null, popups: null, bookings: null, newsletter: null, promos: null, badges: null, claims: null };
+let unsubscribe = { events: null, popups: null, bookings: null, newsletter: null, promos: null, badges: null, claims: null, users: null };
 let bookingsCache = [];
 let bookingsFilter = 'all';
 let toastTimer = null;
+// Chi è loggato (da adminUsers/<email>): email per l'audit updatedBy/createdBy,
+// role per mostrare la tab Utenti solo agli owner.
+let currentUserEmail = '';
+let currentUserRole = 'editor';
+
+// Campi audit su ogni scrittura: updatedBy/updatedAt sempre; createdBy/
+// createdAt sui create. L'email viene dal registro adminUsers, non dal token.
+function auditUpdate() {
+    return { updatedAt: serverTimestamp(), updatedBy: currentUserEmail };
+}
+function auditCreate() {
+    return { ...auditUpdate(), createdAt: serverTimestamp(), createdBy: currentUserEmail };
+}
+function auditBy(d) {
+    return d && d.updatedBy ? ' · da ' + esc(d.updatedBy) : '';
+}
 
 /* ------------------------------------ utils ------------------------------------ */
 
@@ -103,6 +121,57 @@ function toDatetimeLocalValue(d) {
 
 function sanitizeFilename(name) {
     return name.toLowerCase().replace(/[^a-z0-9.\-_]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'immagine';
+}
+
+/* ---------------- generazione immagini IA (callable generateImage) ----------------
+ * Blocco riusabile (tab Eventi e Popup): prompt modificabile precompilato,
+ * chiama la callable admin-only generateImage (gemini image su Vertex AI,
+ * cap 20/ora lato server) → URL Storage pubblico passato a onUrl. */
+function aiImageBlockHTML(prefix, defaultPrompt) {
+    return `
+    <div class="adm-group adm-ai-img">
+        <label for="${prefix}AiPrompt">🎨 Genera immagine con IA
+            <span class="adm-tip" tabindex="0" data-tip="Gemini (Google) genera un'immagine in stile Fonderia partendo dalla descrizione. Puoi modificare il testo prima di generare. Max 20 immagini/ora. L'immagine generata vince sulle altre scelte quando salvi.">?</span>
+        </label>
+        <textarea id="${prefix}AiPrompt" rows="2" placeholder="Descrivi l'immagine da creare, es: tavolata di amici con birre artigianali e musica dal vivo">${esc(defaultPrompt || '')}</textarea>
+        <div class="adm-ai-img-actions">
+            <button type="button" id="${prefix}AiGenBtn" class="adm-btn adm-btn-ghost adm-btn-sm adm-btn-ai">🎨 Genera immagine</button>
+            <span id="${prefix}AiStatus" class="adm-cell-muted" role="status"></span>
+        </div>
+    </div>`;
+}
+
+async function runAiImage(prefix, onUrl) {
+    const promptEl = $(prefix + 'AiPrompt');
+    const statusEl = $(prefix + 'AiStatus');
+    const btn = $(prefix + 'AiGenBtn');
+    if (!promptEl || !btn) return;
+    const prompt = promptEl.value.trim();
+    if (prompt.length < 10) {
+        toast('Descrivi l’immagine in almeno 10 caratteri (o scrivi prima il titolo).', true);
+        promptEl.focus();
+        return;
+    }
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = '⏳ Genero (può richiedere 30 s)…';
+    if (statusEl) statusEl.textContent = '';
+    try {
+        const fn = httpsCallable(await getFunctionsInstance(), 'generateImage');
+        const res = await fn({ prompt });
+        const url = res && res.data && res.data.url;
+        if (!url) throw new Error('risposta senza URL');
+        onUrl(url);
+        if (statusEl) statusEl.textContent = 'Immagine generata ✓ rivedila nell’anteprima, poi salva.';
+    } catch (err) {
+        console.error('[admin] generateImage error:', err);
+        const msg = (err && (err.details || err.message)) || String(err);
+        if (statusEl) statusEl.textContent = 'Non riuscita: ' + msg;
+        toast('Generazione immagine non riuscita: ' + msg, true);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = label;
+    }
 }
 
 /* ------------------------------------ login ------------------------------------ */
@@ -258,11 +327,18 @@ async function completeEmailLinkSignIn() {
 
 /* ------------------------------------ shell ------------------------------------ */
 
-async function initShell(user) {
+async function initShell(user, authz) {
     els.boot.hidden = true;
     els.login.hidden = true;
     els.shell.hidden = false;
-    els.userEmail.textContent = user.email || '';
+    currentUserEmail = authz.email;
+    currentUserRole = authz.role;
+    els.userEmail.textContent = (user.email || '') + (authz.role === 'owner' ? ' · owner' : '');
+
+    // Tab Utenti: solo owner (le rules impediscono comunque le scritture
+    // ai non-owner; qui nascondiamo proprio la tab).
+    const usersTabBtn = $('admTabUsers');
+    if (usersTabBtn) usersTabBtn.hidden = authz.role !== 'owner';
 
     els.tabs.addEventListener('click', (e) => {
         const btn = e.target.closest('.adm-tab');
@@ -278,11 +354,12 @@ async function initShell(user) {
     startPromosTab();
     startBadgesTab();
     startStatsTab();
+    if (authz.role === 'owner') startUsersTab();
 }
 
 function stopAll() {
     Object.values(unsubscribe).forEach((fn) => { if (fn) fn(); });
-    unsubscribe = { events: null, popups: null, bookings: null, newsletter: null, promos: null, badges: null, claims: null };
+    unsubscribe = { events: null, popups: null, bookings: null, newsletter: null, promos: null, badges: null, claims: null, users: null };
 }
 
 /* ------------------------------------ tab: eventi ------------------------------------ */
@@ -294,6 +371,10 @@ function eventFormHTML(ev) {
         return `<option value="${src}"${sel}>${src.replace('images/', '')}</option>`;
     }).join('');
     const customUrl = isEdit && ev.image && !LOCAL_IMAGES.includes(ev.image) ? ev.image : '';
+    // Prompt IA precompilato da titolo+tagline (modificabile prima di generare)
+    const defaultAiPrompt = isEdit && ev.title
+        ? ev.title + (ev.tagline ? ' — ' + ev.tagline : '')
+        : '';
     return `
     <form id="evForm" class="adm-form" novalidate>
         <div class="adm-form-title">${isEdit ? 'Modifica evento' : 'Nuovo evento'}</div>
@@ -339,9 +420,16 @@ function eventFormHTML(ev) {
                 </select>
             </div>
             <div class="adm-group">
-                <label for="evImageUrl">oppure URL immagine libero <span class="adm-tip" tabindex="0" data-tip="Incolla il link diretto a un'immagine (https://…). Se compilato, vince sulla scelta dalla galleria.">?</span></label>
+                <label for="evImageUrl">oppure URL immagine libero <span class="adm-tip" tabindex="0" data-tip="Incolla il link diretto a un'immagine (https://…). Se compilato, vince sulla scelta dalla galleria. Upload e generazione IA compilano questo campo da soli.">?</span></label>
                 <input id="evImageUrl" type="url" value="${esc(customUrl)}" placeholder="https://…" ${customUrl ? '' : 'disabled'}>
             </div>
+        </div>
+        <div class="adm-row">
+            <div class="adm-group">
+                <label for="evUpload">oppure carica dal computer <span class="adm-tip" tabindex="0" data-tip="JPG/PNG/WebP fino a 3 MB. Viene caricata su Firebase Storage (event-images/) e usata come immagine dell'evento.">?</span></label>
+                <input id="evUpload" type="file" accept="image/*">
+            </div>
+            ${aiImageBlockHTML('ev', defaultAiPrompt)}
         </div>
         <label class="adm-check">
             <input id="evActive" type="checkbox" ${!isEdit || ev.active !== false ? 'checked' : ''}>
@@ -394,7 +482,7 @@ async function startEventsTab() {
             <div class="adm-card${ev.active === false ? ' inactive' : ''}">
                 <div class="adm-card-main">
                     <div class="adm-card-title">${esc(ev.title || '(senza titolo)')}</div>
-                    <div class="adm-card-sub">${fmtDate(ev.date)}${ev.time ? ' · ' + esc(ev.time) : ''}</div>
+                    <div class="adm-card-sub">${fmtDate(ev.date)}${ev.time ? ' · ' + esc(ev.time) : ''}${auditBy(ev)}</div>
                 </div>
                 <div class="adm-card-actions">
                     <span class="adm-badge ${ev.active !== false ? 'adm-badge--on' : 'adm-badge--off'}">${ev.active !== false ? 'Attivo' : 'Nascosto'}</span>
@@ -459,9 +547,50 @@ async function startEventsTab() {
         }
     }
 
+    // Upload locale o generazione IA → compilano evImageUrl (vince in save).
+    function applyEventImageUrl(url) {
+        const urlInput = $('evImageUrl');
+        urlInput.disabled = false;
+        urlInput.value = url;
+        $('evImageSelect').value = '';
+        updateEventPreview();
+    }
+
+    async function handleEventUpload(file) {
+        const errBox = $('evFormErr');
+        errBox.hidden = true;
+        if (file.size > 3 * 1024 * 1024) {
+            errBox.textContent = 'Immagine troppo grande (max 3 MB).';
+            errBox.hidden = false;
+            return;
+        }
+        try {
+            const storage = await getStorageInstance();
+            const path = 'event-images/' + Date.now() + '-' + sanitizeFilename(file.name);
+            await uploadBytes(storageRef(storage, path), file);
+            const url = await getDownloadURL(storageRef(storage, path));
+            applyEventImageUrl(url);
+            toast('Immagine caricata. Salva l’evento per usarla.');
+        } catch (err) {
+            console.error('[admin] event upload error:', err);
+            errBox.hidden = false;
+            errBox.textContent = 'Upload non riuscito: ' + (err.code || err.message);
+        }
+    }
+
     panel.addEventListener('click', async (e) => {
         const aiBtn = e.target.closest('#evAiBtn');
         if (aiBtn) { runAiSuggest(aiBtn); return; }
+        const aiImgBtn = e.target.closest('#evAiGenBtn');
+        if (aiImgBtn) {
+            // precompila il prompt da titolo+tagline se l'admin non l'ha toccato
+            const promptEl = $('evAiPrompt');
+            if (promptEl && !promptEl.value.trim()) {
+                promptEl.value = [$('evTitle').value.trim(), $('evTagline').value.trim()].filter(Boolean).join(' — ');
+            }
+            runAiImage('ev', applyEventImageUrl);
+            return;
+        }
         const btn = e.target.closest('[data-ev-action]');
         if (!btn) return;
         const action = btn.dataset.evAction;
@@ -474,7 +603,7 @@ async function startEventsTab() {
             else if (action === 'cancel') { formSlot.innerHTML = ''; editingId = null; }
             else if (action === 'edit') { if (entry) openForm(entry.data, id); }
             else if (action === 'toggle') {
-                await updateDoc(doc(db, 'events', id), { active: entry.data.active === false, updatedAt: serverTimestamp() });
+                await updateDoc(doc(db, 'events', id), { active: entry.data.active === false, ...auditUpdate() });
             } else if (action === 'delete') {
                 if (confirm(`Eliminare l'evento "${entry?.data?.title || id}"? L'azione non è reversibile.`)) {
                     await deleteDoc(doc(db, 'events', id));
@@ -494,6 +623,7 @@ async function startEventsTab() {
             else urlInput.disabled = false;
         }
         if (e.target.id === 'evImageUrl' && e.target.value) $('evImageSelect').value = '';
+        if (e.target.id === 'evUpload' && e.target.files[0]) handleEventUpload(e.target.files[0]);
         if (e.target.closest('#evForm')) updateEventPreview();
     });
 
@@ -526,7 +656,7 @@ async function startEventsTab() {
             return;
         }
 
-        const payload = { title, tagline, date, time, description, image, active, order, updatedAt: serverTimestamp() };
+        const payload = { title, tagline, date, time, description, image, active, order, ...auditUpdate() };
 
         try {
             const db = await getDb();
@@ -534,7 +664,7 @@ async function startEventsTab() {
                 await updateDoc(doc(db, 'events', editingId), payload);
                 toast('Evento aggiornato.');
             } else {
-                await addDoc(collection(db, 'events'), { ...payload, createdAt: serverTimestamp() });
+                await addDoc(collection(db, 'events'), { ...payload, ...auditCreate() });
                 toast('Evento creato.');
             }
             formSlot.innerHTML = '';
@@ -655,6 +785,7 @@ function popupFormHTML(pop) {
                 <input id="popUpload" type="file" accept="image/*">
                 <div id="popUploadPreview">${storagePreview}</div>
             </div>
+            ${aiImageBlockHTML('pop', isEdit && pop.title ? pop.title + (pop.body ? ' — ' + pop.body : '') : '')}
         </fieldset>
         <label class="adm-check">
             <input id="popActive" type="checkbox" ${!isEdit || pop.active !== false ? 'checked' : ''}>
@@ -702,7 +833,7 @@ async function startPopupsTab() {
             <div class="adm-card${p.active === false ? ' inactive' : ''}">
                 <div class="adm-card-main">
                     <div class="adm-card-title">${esc(p.title || '(senza titolo)')} <span class="adm-cell-muted">v${p.version || 1}</span></div>
-                    <div class="adm-card-sub">${fmtDateTime(p.startDate)} → ${fmtDateTime(p.endDate)} · CTA: ${esc(p.ctaType || 'booking')}</div>
+                    <div class="adm-card-sub">${fmtDateTime(p.startDate)} → ${fmtDateTime(p.endDate)} · CTA: ${esc(p.ctaType || 'booking')}${auditBy(p)}</div>
                 </div>
                 <div class="adm-card-actions">
                     <span class="adm-badge ${p.active !== false ? 'adm-badge--on' : 'adm-badge--off'}">${p.active !== false ? 'Attivo' : 'Nascosto'}</span>
@@ -749,7 +880,26 @@ async function startPopupsTab() {
         }
     }
 
+    // Immagine generata via IA → conta come upload Storage (stesso salva-flusso).
+    function applyAiImage(url) {
+        uploadedImage = { imageUrl: url, imageSource: 'storage' };
+        panel.querySelectorAll('#popForm .adm-img-cell').forEach((c) => c.classList.remove('selected'));
+        const r = panel.querySelector('#popForm input[name="popBg"]:checked');
+        if (r) r.checked = false;
+        $('popUploadPreview').innerHTML = `<img class="adm-img-preview" src="${url}" alt="immagine generata">`;
+    }
+
     panel.addEventListener('click', async (e) => {
+        const aiImgBtn = e.target.closest('#popAiGenBtn');
+        if (aiImgBtn) {
+            const promptEl = $('popAiPrompt');
+            if (promptEl && !promptEl.value.trim()) {
+                promptEl.value = [$('popTitle').value.trim(), $('popBody').value.trim()].filter(Boolean).join(' — ');
+            }
+            runAiImage('pop', applyAiImage);
+            return;
+        }
+
         const imgCell = e.target.closest('.adm-img-cell');
         if (imgCell) {
             panel.querySelectorAll('.adm-img-cell').forEach((c) => c.classList.remove('selected'));
@@ -773,7 +923,7 @@ async function startPopupsTab() {
             else if (action === 'cancel') { formSlot.innerHTML = ''; editingId = null; uploadedImage = null; }
             else if (action === 'edit') { if (entry) openForm(entry.data, id); }
             else if (action === 'toggle') {
-                await updateDoc(doc(db, 'popups', id), { active: entry.data.active === false, updatedAt: serverTimestamp() });
+                await updateDoc(doc(db, 'popups', id), { active: entry.data.active === false, ...auditUpdate() });
             } else if (action === 'delete') {
                 if (confirm(`Eliminare il popup "${entry?.data?.title || id}"? L'azione non è reversibile.`)) {
                     await deleteDoc(doc(db, 'popups', id));
@@ -844,7 +994,7 @@ async function startPopupsTab() {
             title, body, startDate, endDate, active,
             imageUrl, imageSource,
             ctaType,
-            updatedAt: serverTimestamp(),
+            ...auditUpdate(),
         };
         if (ctaType === 'booking') {
             payload.ctaBookingType = $('popCtaBookingType').value;
@@ -866,7 +1016,7 @@ async function startPopupsTab() {
                 await updateDoc(doc(db, 'popups', editingId), payload);
                 toast(keepDismissal ? 'Popup aggiornato (dismissal mantenuto).' : 'Popup aggiornato: verrà ri-mostrato a tutti.');
             } else {
-                await addDoc(collection(db, 'popups'), { ...payload, version: 1, createdAt: serverTimestamp() });
+                await addDoc(collection(db, 'popups'), { ...payload, version: 1, ...auditCreate() });
                 toast('Popup creato.');
             }
             formSlot.innerHTML = '';
@@ -979,7 +1129,7 @@ async function startBookingsTab() {
         const status = e.target.value;
         try {
             const db = await getDb();
-            await updateDoc(doc(db, 'bookings', id), { status, updatedAt: serverTimestamp() });
+            await updateDoc(doc(db, 'bookings', id), { status, ...auditUpdate() });
             toast('Stato aggiornato: ' + BOOKING_STATUSES[status]);
         } catch (err) {
             console.error('[admin] booking status error:', err);
@@ -1381,7 +1531,7 @@ async function startPromosTab() {
             <div class="adm-card${p.active === false ? ' inactive' : ''}">
                 <div class="adm-card-main">
                     <div class="adm-card-title">${esc(p.title || '(senza titolo)')}</div>
-                    <div class="adm-card-sub">${esc(ACTION_TYPES[p.actionType] || p.actionType || '—')} · Premio: ${esc(p.prizeLabel || '—')}${p.actionType === 'referral' && p.refTarget ? ' · soglia ' + esc(p.refTarget) : ''}${p.startsAt || p.endsAt ? '<br>' + fmtDateTime(p.startsAt) + ' → ' + fmtDateTime(p.endsAt) : ''}</div>
+                    <div class="adm-card-sub">${esc(ACTION_TYPES[p.actionType] || p.actionType || '—')} · Premio: ${esc(p.prizeLabel || '—')}${p.actionType === 'referral' && p.refTarget ? ' · soglia ' + esc(p.refTarget) : ''}${p.startsAt || p.endsAt ? '<br>' + fmtDateTime(p.startsAt) + ' → ' + fmtDateTime(p.endsAt) : ''}${auditBy(p)}</div>
                 </div>
                 <div class="adm-card-actions">
                     <span class="adm-badge ${p.active !== false ? 'adm-badge--on' : 'adm-badge--off'}">${p.active !== false ? 'Attiva' : 'Nascosta'}</span>
@@ -1616,7 +1766,7 @@ async function startPromosTab() {
                     toast('Copia automatica non riuscita. Link: ' + link, true);
                 }
             } else if (action === 'toggle') {
-                await updateDoc(doc(db, 'promos', id), { active: entry.data.active === false, updatedAt: serverTimestamp() });
+                await updateDoc(doc(db, 'promos', id), { active: entry.data.active === false, ...auditUpdate() });
             } else if (action === 'delete') {
                 if (confirm(`Eliminare la promozione "${entry?.data?.title || id}"? I claim già emessi restano riscattabili. L'azione non è reversibile.`)) {
                     await deleteDoc(doc(db, 'promos', id));
@@ -1649,7 +1799,7 @@ async function startPromosTab() {
             }
             try {
                 const db = await getDb();
-                await setDoc(doc(db, 'config', 'gamification'), update, { merge: true });
+                await setDoc(doc(db, 'config', 'gamification'), { ...update, ...auditUpdate() }, { merge: true });
                 gamConfig.prizeOptions = prizeOptions;
                 if (pin) gamConfig.staffPinSet = true;
                 panel.querySelector('#gamStaffPin').value = ''; // mai lasciare il PIN nel DOM
@@ -1715,7 +1865,7 @@ async function startPromosTab() {
         const payload = {
             title, prizeLabel, actionType, refTarget, eventRef, aiChecklist,
             startsAt, endsAt, active,
-            updatedAt: serverTimestamp(),
+            ...auditUpdate(),
         };
         try {
             const db = await getDb();
@@ -1724,7 +1874,7 @@ async function startPromosTab() {
                 promoTitleCache.set(editingId, title);
                 toast('Promozione aggiornata.');
             } else {
-                await addDoc(collection(db, 'promos'), { ...payload, createdAt: serverTimestamp() });
+                await addDoc(collection(db, 'promos'), { ...payload, ...auditCreate() });
                 toast('Promozione creata.');
             }
             formSlot.innerHTML = '';
@@ -1859,7 +2009,7 @@ async function startBadgesTab() {
             <div class="adm-card${b.active === false ? ' inactive' : ''}">
                 <div class="adm-card-main">
                     <div class="adm-card-title">${esc(b.icon || '🏅')} ${esc(b.name || '(senza nome)')}</div>
-                    <div class="adm-card-sub">${esc(BADGE_METRICS[b.rule?.metric] || b.rule?.metric || '—')} ≥ ${esc(b.rule?.threshold ?? '—')}${b.description ? ' · ' + esc(b.description) : ''}</div>
+                    <div class="adm-card-sub">${esc(BADGE_METRICS[b.rule?.metric] || b.rule?.metric || '—')} ≥ ${esc(b.rule?.threshold ?? '—')}${b.description ? ' · ' + esc(b.description) : ''}${auditBy(b)}</div>
                 </div>
                 <div class="adm-card-actions">
                     <span class="adm-badge ${b.active !== false ? 'adm-badge--on' : 'adm-badge--off'}">${b.active !== false ? 'Attivo' : 'Nascosto'}</span>
@@ -1889,7 +2039,7 @@ async function startBadgesTab() {
             else if (action === 'cancel') { formSlot.innerHTML = ''; editingId = null; }
             else if (action === 'edit') { if (entry) openForm(entry.data, id); }
             else if (action === 'toggle') {
-                await updateDoc(doc(db, 'badges', id), { active: entry.data.active === false, updatedAt: serverTimestamp() });
+                await updateDoc(doc(db, 'badges', id), { active: entry.data.active === false, ...auditUpdate() });
             } else if (action === 'delete') {
                 if (confirm(`Eliminare il badge "${entry?.data?.name || id}"? Chi lo ha già guadagnato lo mantiene sulla tessera.`)) {
                     await deleteDoc(doc(db, 'badges', id));
@@ -1927,7 +2077,7 @@ async function startBadgesTab() {
             name, icon, description,
             rule: { metric, threshold },
             active,
-            updatedAt: serverTimestamp(),
+            ...auditUpdate(),
         };
         try {
             const db = await getDb();
@@ -1935,7 +2085,7 @@ async function startBadgesTab() {
                 await updateDoc(doc(db, 'badges', editingId), payload);
                 toast('Badge aggiornato.');
             } else {
-                await addDoc(collection(db, 'badges'), { ...payload, createdAt: serverTimestamp() });
+                await addDoc(collection(db, 'badges'), { ...payload, ...auditCreate() });
                 toast('Badge creato.');
             }
             formSlot.innerHTML = '';
@@ -1966,6 +2116,142 @@ async function startBadgesTab() {
     }
 }
 
+/* --------------------------- tab: utenti (solo owner) --------------------------- *
+ * Registro adminUsers/<email-lowercase>. Gli owner (👑) sono seminati via
+ * Admin SDK e non compaiono con azioni (immutabili anche lato rules).
+ * L'aggiunta non crea l'account Firebase: il nuovo utente richiede il magic
+ * link dalla pagina di login con la sua email e diventa operativo subito. */
+function startUsersTab() {
+    const panel = els.panels.users;
+    if (!panel) return;
+    let cached = [];
+
+    panel.innerHTML = `
+        <div class="adm-panel-head">
+            <div>
+                <h2>Utenti gestionale</h2>
+                <p class="adm-panel-lead">Chi può accedere a quest’area. Solo gli owner possono aggiungere, sospendere o eliminare utenti; gli owner (👑) non sono modificabili. Il nuovo utente accede richiedendo il link email dalla pagina di login con il suo indirizzo.</p>
+            </div>
+        </div>
+        <form id="usAddForm" class="adm-form" novalidate>
+            <div class="adm-form-title">Aggiungi utente</div>
+            <div class="adm-row">
+                <div class="adm-group">
+                    <label for="usName">Nome</label>
+                    <input id="usName" type="text" required placeholder="Nome e cognome" autocomplete="off">
+                </div>
+                <div class="adm-group">
+                    <label for="usEmail">Email</label>
+                    <input id="usEmail" type="email" required placeholder="nome@esempio.it" autocomplete="off">
+                </div>
+            </div>
+            <div id="usAddErr" class="adm-inline-err" hidden></div>
+            <div class="adm-form-actions">
+                <button class="adm-btn" type="submit">+ Aggiungi utente</button>
+            </div>
+        </form>
+        <div id="usList" class="adm-list"><div class="adm-empty">Caricamento utenti…</div></div>`;
+
+    const listEl = panel.querySelector('#usList');
+
+    function renderList() {
+        if (!cached.length) {
+            listEl.innerHTML = '<div class="adm-empty">Nessun utente registrato.</div>';
+            return;
+        }
+        listEl.innerHTML = cached.map(({ id, data: u }) => {
+            const ownerRow = u.role === 'owner';
+            return `
+            <div class="adm-card${u.status !== 'active' ? ' inactive' : ''}">
+                <div class="adm-card-main">
+                    <div class="adm-card-title">${ownerRow ? '👑 ' : ''}${esc(u.name || '(senza nome)')} <span class="adm-cell-muted">${esc(id)}</span></div>
+                    <div class="adm-card-sub">${ownerRow ? 'Owner' : 'Editor'}${auditBy(u)}</div>
+                </div>
+                <div class="adm-card-actions">
+                    <span class="adm-badge ${u.status === 'active' ? 'adm-badge--on' : 'adm-badge--off'}">${u.status === 'active' ? 'Attivo' : 'Sospeso'}</span>
+                    ${ownerRow ? '' : `
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-us-action="toggle" data-id="${esc(id)}" type="button">${u.status === 'active' ? 'Sospendi' : 'Riattiva'}</button>
+                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-us-action="delete" data-id="${esc(id)}" type="button">Elimina</button>`}
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    panel.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-us-action]');
+        if (!btn) return;
+        const id = btn.dataset.id;
+        const entry = cached.find((c) => c.id === id);
+        // doppia barriera oltre le Firestore rules: gli owner non si toccano
+        if (!entry || entry.data.role === 'owner') return;
+        try {
+            const db = await getDb();
+            if (btn.dataset.usAction === 'toggle') {
+                const next = entry.data.status === 'active' ? 'suspended' : 'active';
+                await updateDoc(doc(db, 'adminUsers', id), { status: next, ...auditUpdate() });
+                toast(next === 'active' ? 'Utente riattivato.' : 'Utente sospeso: non può più accedere.');
+            } else if (btn.dataset.usAction === 'delete') {
+                if (confirm(`Eliminare l'utente ${id}? Non potrà più accedere al gestionale. L'azione non è reversibile.`)) {
+                    await deleteDoc(doc(db, 'adminUsers', id));
+                    toast('Utente eliminato.');
+                }
+            }
+        } catch (err) {
+            console.error('[admin] users action error:', err);
+            toast('Operazione non riuscita: ' + (err.code || err.message), true);
+        }
+    });
+
+    panel.addEventListener('submit', async (e) => {
+        if (e.target.id !== 'usAddForm') return;
+        e.preventDefault();
+        const errBox = $('usAddErr');
+        errBox.hidden = true;
+        const name = $('usName').value.trim();
+        const emailLc = $('usEmail').value.trim().toLowerCase();
+        if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(emailLc)) {
+            errBox.textContent = 'Servono nome e un indirizzo email valido.';
+            errBox.hidden = false;
+            return;
+        }
+        if (cached.some((c) => c.id === emailLc)) {
+            errBox.textContent = 'Questo indirizzo è già registrato.';
+            errBox.hidden = false;
+            return;
+        }
+        try {
+            const db = await getDb();
+            await setDoc(doc(db, 'adminUsers', emailLc), {
+                name, email: emailLc, role: 'editor', status: 'active', ...auditCreate(),
+            });
+            $('usName').value = '';
+            $('usEmail').value = '';
+            toast('Utente aggiunto: può accedere dalla pagina di login con la sua email.');
+        } catch (err) {
+            console.error('[admin] add user error:', err);
+            errBox.textContent = 'Aggiunta non riuscita: ' + (err.code || err.message);
+            errBox.hidden = false;
+        }
+    });
+
+    getDb().then((db) => {
+        unsubscribe.users = onSnapshot(
+            query(collection(db, 'adminUsers'), orderBy('name')),
+            (snap) => {
+                cached = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
+                renderList();
+            },
+            (err) => {
+                console.error('[admin] users snapshot error:', err);
+                listEl.innerHTML = '<div class="adm-inline-err">Errore nel caricamento degli utenti.</div>';
+            }
+        );
+    }).catch((err) => {
+        console.error('[admin] users init error:', err);
+        listEl.innerHTML = '<div class="adm-inline-err">Impossibile connettersi al database.</div>';
+    });
+}
+
 /* ------------------------------------ bootstrap ------------------------------------ */
 
 els.login.addEventListener('click', async (e) => {
@@ -1992,17 +2278,20 @@ els.logout.addEventListener('click', async () => {
     }
 });
 
+// Autorizzazione via registro adminUsers/<email-lowercase> (status active).
+// Un utente NON registrato non può nemmeno leggere adminUsers (rules) →
+// il getDoc fallisce con permission-denied e viene trattato come non autorizzato.
+// Ritorna { email, role } oppure false.
 async function checkAuthorized(user) {
     try {
         const db = await getDb();
-        const snap = await getDoc(doc(db, 'config', 'admin'));
-        if (snap.exists()) {
-            const list = snap.data().allowedEmails;
-            const emailLc = (user.email || '').toLowerCase();
-            if (Array.isArray(list) && list.map((x) => String(x).toLowerCase()).includes(emailLc)) return true;
+        const emailLc = (user.email || '').toLowerCase();
+        const snap = await getDoc(doc(db, 'adminUsers', emailLc));
+        if (snap.exists() && snap.data().status === 'active') {
+            return { email: emailLc, role: snap.data().role === 'owner' ? 'owner' : 'editor' };
         }
     } catch (err) {
-        console.error('[admin] whitelist check error (trattato come non autorizzato):', err);
+        console.error('[admin] adminUsers check error (trattato come non autorizzato):', err);
     }
     return false;
 }
@@ -2114,15 +2403,15 @@ async function startAuthFlow() {
                 return;
             }
             admMark('utente: ' + (user.email || user.uid));
-            const ok = await checkAuthorized(user);
-            if (!ok) {
-                admMark('email non in whitelist → schermata "non autorizzato"');
+            const authz = await checkAuthorized(user);
+            if (!authz) {
+                admMark('email non in adminUsers → schermata "non autorizzato"');
                 stopAll();
                 showUnauthorized(user.email);
                 return;
             }
-            admMark('whitelist OK → apro la shell');
-            initShell(user);
+            admMark('adminUsers OK (' + authz.role + ') → apro la shell');
+            initShell(user, authz);
         } catch (err) {
             console.error('[admin] errore nel flusso auth:', err);
             if (window.__admBootFail) {

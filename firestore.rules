@@ -9,14 +9,23 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // La whitelist vive in config/admin { allowedEmails: [...] }.
+    // Gli utenti admin vivono in adminUsers/<email-lowercase>
+    // { name, role: 'owner'|'editor', status: 'active'|'suspended' }.
     // exists() prima di get(): get su doc mancante fa fallire la rule.
+    function adminDoc() {
+      return get(/databases/$(database)/documents/adminUsers/$(request.auth.token.email.lower())).data;
+    }
     function isAdmin() {
       return isSignedIn()
         && request.auth.token.email is string
-        && exists(/databases/$(database)/documents/config/admin)
-        && request.auth.token.email in
-             get(/databases/$(database)/documents/config/admin).data.allowedEmails;
+        && exists(/databases/$(database)/documents/adminUsers/$(request.auth.token.email.lower()))
+        && adminDoc().status == 'active';
+    }
+    // Owner: come admin ma con role 'owner'. Solo gli owner gestiscono
+    // adminUsers (vedi match sotto). I doc owner sono seminati via
+    // Admin SDK (bypass rules) e immutabili dal client.
+    function isOwner() {
+      return isAdmin() && adminDoc().role == 'owner';
     }
 
     function validEmail(s) {
@@ -47,12 +56,32 @@ service cloud.firestore {
 
     // ---------- configurazione ----------
 
-    // config/admin: lettura da utenti autenticati (check whitelist in admin.js).
-    // Scrittura client vietata — la whitelist si modifica solo via Admin SDK
-    // (seed script / console), che bypassa le rules.
+    // config/admin: DEPRECATO (sostituito da adminUsers). Resta leggibile
+    // agli autenticati per compatibilità con versioni admin già caricate;
+    // scrittura client sempre vietata.
     match /config/admin {
       allow read: if isSignedIn();
       allow write: if false;
+    }
+
+    // adminUsers: registro degli utenti admin.
+    // - lettura: qualunque admin attivo (la tab Utenti filtra lato UI)
+    // - create: solo owner, e mai con role 'owner' (gli owner li semina
+    //   l'Admin SDK; dal client nascono solo editor)
+    // - update/delete: solo owner, e MAI su doc con role 'owner'
+    //   (owner immutabili: non sospendibili/eliminabili/declassabili,
+    //   nemmeno da se stessi). L'update non puo' promuovere a owner.
+    match /adminUsers/{emailId} {
+      allow read: if isAdmin();
+      allow create: if isOwner()
+        && request.resource.data.role == 'editor'
+        && request.resource.data.status in ['active', 'suspended'];
+      allow update: if isOwner()
+        && resource.data.role != 'owner'
+        && request.resource.data.role == 'editor'
+        && request.resource.data.status in ['active', 'suspended'];
+      allow delete: if isOwner()
+        && resource.data.role != 'owner';
     }
 
     // config/gamification: staffPin e prizeOptions — SOLO admin.

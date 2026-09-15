@@ -212,16 +212,18 @@ exports.onBookingCreated = onDocumentCreated(
 const GA_PROPERTY = 'properties/4135131259';
 const GA_SA = 'ga-stats@fonderia-treviso.iam.gserviceaccount.com';
 
+// Gli utenti admin vivono in adminUsers/<email-lowercase> (status active).
+// Riletto a ogni chiamata, niente cache. Ritorna l'email del chiamante.
 async function assertAdmin(req) {
   const email = req.auth && req.auth.token && req.auth.token.email;
   if (!email) {
     throw new HttpsError('unauthenticated', 'Accesso richiesto.');
   }
-  const cfg = await admin.firestore().doc('config/admin').get();
-  const allowed = (cfg.exists && cfg.data().allowedEmails) || [];
-  if (!allowed.includes(email)) {
+  const snap = await admin.firestore().doc('adminUsers/' + email.toLowerCase()).get();
+  if (!snap.exists || snap.data().status !== 'active') {
     throw new HttpsError('permission-denied', 'Email non autorizzata.');
   }
+  return email;
 }
 
 exports.getGaStats = onCall(
@@ -385,6 +387,121 @@ exports.suggestEventCopy = onCall(
     } catch (err) {
       if (err instanceof HttpsError) throw err;
       logger.error('suggestEventCopy FALLITO', { error: String(err && err.message || err) });
+      throw new HttpsError('internal', 'Generazione non riuscita. Riprova tra poco.');
+    }
+  }
+);
+
+/* ------------------------------------------------------------------ *
+ * generateImage — immagini di scena per eventi/popup via Gemini image.
+ *
+ * Callable: stessa protezione di suggestEventCopy (assertAdmin).
+ * Modello: gemini-2.5-flash-image ("nano banana") su Vertex AI, location
+ * global — fattibilita' verificata 2026-09-12 con probe reale sul
+ * progetto (PNG 1.26MB generato). Auth: ADC Compute default SA.
+ * Rate limit: max 20 generazioni/ora per admin (doc imageGenLimits/<email>).
+ * Output: salvataggio su Storage generated-images/<uuid>.<ext> e URL
+ * pubblico restituito al client (lettura pubblica da storage.rules).
+ * ------------------------------------------------------------------ */
+
+const VERTEX_IMAGE_URL =
+  'https://aiplatform.googleapis.com/v1/projects/fonderia-treviso' +
+  '/locations/global/publishers/google/models/gemini-2.5-flash-image:generateContent';
+const IMAGE_GEN_HOURLY_CAP = 20;
+
+exports.generateImage = onCall(
+  { region: 'europe-west1', maxInstances: 2, timeoutSeconds: 120 },
+  async (req) => {
+    const email = await assertAdmin(req);
+
+    const prompt = String((req.data && req.data.prompt) || '').trim().slice(0, 1000);
+    if (prompt.length < 10) {
+      throw new HttpsError('invalid-argument', 'Descrivi l’immagine da generare (almeno 10 caratteri).');
+    }
+
+    // Rate limit 20/ora per admin, in transazione: windowStart si resetta
+    // allo scadere dell'ora; oltre il cap → resource-exhausted.
+    const db = admin.firestore();
+    const limitRef = db.collection('imageGenLimits').doc(email.toLowerCase());
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(limitRef);
+      const data = snap.exists ? snap.data() : null;
+      const ws = data && data.windowStart && typeof data.windowStart.toMillis === 'function'
+        ? data.windowStart.toMillis()
+        : 0;
+      const expired = Date.now() - ws >= 3600000;
+      if (!expired && (data.count || 0) >= IMAGE_GEN_HOURLY_CAP) {
+        throw new HttpsError(
+          'resource-exhausted',
+          'Limite di ' + IMAGE_GEN_HOURLY_CAP + ' immagini/ora raggiunto. Riprova più tardi.'
+        );
+      }
+      if (expired) {
+        tx.set(limitRef, { windowStart: FieldValue.serverTimestamp(), count: 1 });
+      } else {
+        tx.update(limitRef, { count: FieldValue.increment(1) });
+      }
+    });
+
+    const fullPrompt =
+      'Fotografia professionale per Fonderia Treviso: birreria e cocktail bar con\n' +
+      'cucina, musica live e DJ set, in Via Fonderia 113 a Treviso. Stile: atmosfera\n' +
+      'serale calda ed energica, luci ambrate, toni scuri e dorati, estetica\n' +
+      'industriale-chic da brewpub moderno, immagine realistica di alta qualità.\n' +
+      'Soggetto richiesto: ' + prompt + '\n' +
+      'Nessun testo, nessun logo, nessuna scritta o watermark nell’immagine.';
+
+    try {
+      const auth = new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
+      const client = await auth.getClient();
+      const { token } = await client.getAccessToken();
+
+      const resp = await fetch(VERTEX_IMAGE_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
+          generationConfig: {
+            responseModalities: ['TEXT', 'IMAGE'],
+            imageConfig: { aspectRatio: '16:9' },
+          },
+        }),
+      });
+
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => '');
+        logger.error('Vertex image generateContent non-OK', { status: resp.status, body: body.slice(0, 500) });
+        throw new HttpsError('internal', 'Il modello non ha risposto (HTTP ' + resp.status + '). Riprova tra poco.');
+      }
+
+      const json = await resp.json();
+      const parts = (((json.candidates || [])[0] || {}).content || {}).parts || [];
+      const imgPart = parts.find((p) => p.inlineData && p.inlineData.data);
+      if (!imgPart) {
+        logger.error('Vertex image: nessuna immagine in risposta', { parts: parts.length });
+        throw new HttpsError('internal', 'Il modello non ha generato un’immagine. Riformula la descrizione.');
+      }
+
+      const mime = imgPart.inlineData.mimeType || 'image/png';
+      const ext = mime === 'image/jpeg' ? 'jpg' : 'png';
+      const buf = Buffer.from(imgPart.inlineData.data, 'base64');
+      const filePath = 'generated-images/' + crypto.randomUUID() + '.' + ext;
+      await admin.storage().bucket(STORAGE_BUCKET).file(filePath).save(buf, {
+        contentType: mime,
+        resumable: false,
+        metadata: { cacheControl: 'public, max-age=31536000' },
+      });
+
+      const url = 'https://firebasestorage.googleapis.com/v0/b/' + STORAGE_BUCKET +
+        '/o/' + encodeURIComponent(filePath) + '?alt=media';
+      logger.info('generateImage OK', { email, filePath, bytes: buf.length });
+      return { url, path: filePath };
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      logger.error('generateImage FALLITO', { error: String(err && err.message || err) });
       throw new HttpsError('internal', 'Generazione non riuscita. Riprova tra poco.');
     }
   }
@@ -1298,13 +1415,21 @@ exports.reviewClaim = onCall(
         throw new HttpsError('failed-precondition', 'Claim già gestito.');
       }
       if (!approve) {
-        tx.update(ref, { status: 'rejected' });
+        tx.update(ref, {
+          status: 'rejected',
+          reviewedBy: req.auth.token.email,
+          reviewedAt: FieldValue.serverTimestamp(),
+        });
         return null;
       }
       const mRef = db.collection('members').doc(claim.memberId);
       const promoSnap = await tx.get(db.collection('promos').doc(claim.promoId));
       const promo = promoSnap.exists ? promoSnap.data() : {};
-      tx.update(ref, { status: 'issued' });
+      tx.update(ref, {
+        status: 'issued',
+        reviewedBy: req.auth.token.email,
+        reviewedAt: FieldValue.serverTimestamp(),
+      });
       tx.update(mRef, {
         ['actionsCount.' + (promo.actionType || 'custom')]: FieldValue.increment(1),
       });
@@ -1344,6 +1469,8 @@ exports.approveReferral = onCall(
       tx.update(ref, {
         referralCount: FieldValue.increment(1),
         suspiciousReferral: FieldValue.delete(),
+        approvedBy: req.auth.token.email,
+        approvedAt: FieldValue.serverTimestamp(),
       });
     });
     await evaluateBadges(ref, (await ref.get()).data());

@@ -24,7 +24,10 @@ const {
 } = require('firebase/firestore');
 
 const PROJECT_ID = 'demo-fonderia';
-const ADMIN_EMAIL = 'admin@fonderia.it';
+const ADMIN_EMAIL = 'admin@fonderia.it'; // owner
+const OWNER2_EMAIL = 'owner2@fonderia.it';
+const EDITOR_EMAIL = 'editor@fonderia.it';
+const SUSPENDED_EMAIL = 'sospeso@fonderia.it';
 
 const rules = fs.readFileSync(
   path.join(__dirname, '..', 'firestore.rules'),
@@ -61,11 +64,20 @@ before(async () => {
 
 beforeEach(async () => {
   await testEnv.clearFirestore();
-  // seed con rules disabilitate: whitelist admin + contenuti di test
+  // seed con rules disabilitate: registro adminUsers + contenuti di test
   await testEnv.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
-    await setDoc(doc(db, 'config', 'admin'), {
-      allowedEmails: [ADMIN_EMAIL],
+    await setDoc(doc(db, 'adminUsers', ADMIN_EMAIL), {
+      name: 'Admin Test', role: 'owner', status: 'active',
+    });
+    await setDoc(doc(db, 'adminUsers', OWNER2_EMAIL), {
+      name: 'Owner Due', role: 'owner', status: 'active',
+    });
+    await setDoc(doc(db, 'adminUsers', EDITOR_EMAIL), {
+      name: 'Editor Test', role: 'editor', status: 'active',
+    });
+    await setDoc(doc(db, 'adminUsers', SUSPENDED_EMAIL), {
+      name: 'Sospeso Test', role: 'editor', status: 'suspended',
     });
     await setDoc(doc(db, 'promos', 'active-promo'), {
       title: 'Condividi la serata', prizeLabel: 'Drink omaggio',
@@ -285,8 +297,78 @@ describe('gamification — members, claims, config', () => {
     await assertFails(getDoc(doc(db, 'config', 'gamification')));
   });
 
-  it('config/admin resta leggibile da utente loggato (check whitelist admin.js)', async () => {
+  it('config/admin resta leggibile da utente loggato (retro-compat admin.js)', async () => {
     const db = testEnv.authenticatedContext('random-uid', { email: 'estraneo@example.com' }).firestore();
     await assertSucceeds(getDoc(doc(db, 'config', 'admin')));
+  });
+
+  it('utente SOSPESO non e\' admin: NON puo\' leggere bookings', async () => {
+    const db = testEnv.authenticatedContext('susp-uid', { email: SUSPENDED_EMAIL }).firestore();
+    await assertFails(getDocs(collection(db, 'bookings')));
+  });
+
+  it('editor ATTIVO e\' admin: PUO\' leggere bookings e scrivere eventi', async () => {
+    const db = testEnv.authenticatedContext('ed-uid', { email: EDITOR_EMAIL }).firestore();
+    await assertSucceeds(getDocs(collection(db, 'bookings')));
+    await assertSucceeds(setDoc(doc(db, 'events', 'ed-event'), { title: 'x', active: true }));
+  });
+});
+
+describe('adminUsers — gestione utenti admin', () => {
+  it('anon NON puo\' leggere adminUsers', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(getDoc(doc(db, 'adminUsers', ADMIN_EMAIL)));
+  });
+
+  it('editor attivo PUO\' leggere adminUsers (isAdmin)', async () => {
+    const db = testEnv.authenticatedContext('ed-uid', { email: EDITOR_EMAIL }).firestore();
+    await assertSucceeds(getDocs(collection(db, 'adminUsers')));
+  });
+
+  it('editor NON puo\' creare adminUsers (serve owner)', async () => {
+    const db = testEnv.authenticatedContext('ed-uid', { email: EDITOR_EMAIL }).firestore();
+    await assertFails(setDoc(doc(db, 'adminUsers', 'nuovo@fonderia.it'), {
+      name: 'Nuovo', role: 'editor', status: 'active',
+    }));
+  });
+
+  it('owner PUO\' creare un editor', async () => {
+    const db = testEnv.authenticatedContext('admin-uid', { email: ADMIN_EMAIL }).firestore();
+    await assertSucceeds(setDoc(doc(db, 'adminUsers', 'nuovo@fonderia.it'), {
+      name: 'Nuovo', role: 'editor', status: 'active',
+    }));
+  });
+
+  it('owner NON puo\' creare un doc con role owner (owners solo via Admin SDK)', async () => {
+    const db = testEnv.authenticatedContext('admin-uid', { email: ADMIN_EMAIL }).firestore();
+    await assertFails(setDoc(doc(db, 'adminUsers', 'fake-owner@fonderia.it'), {
+      name: 'Fake', role: 'owner', status: 'active',
+    }));
+  });
+
+  it('owner PUO\' sospendere un editor (update status)', async () => {
+    const db = testEnv.authenticatedContext('admin-uid', { email: ADMIN_EMAIL }).firestore();
+    await assertSucceeds(setDoc(doc(db, 'adminUsers', EDITOR_EMAIL), {
+      name: 'Editor Test', role: 'editor', status: 'suspended',
+    }));
+  });
+
+  it('owner immutabile: NON modificabile nemmeno da un altro owner', async () => {
+    const db = testEnv.authenticatedContext('admin-uid', { email: ADMIN_EMAIL }).firestore();
+    await assertFails(setDoc(doc(db, 'adminUsers', OWNER2_EMAIL), {
+      name: 'Owner Due', role: 'owner', status: 'suspended',
+    }));
+  });
+
+  it('owner immutabile: NON eliminabile nemmeno da un owner (se stesso)', async () => {
+    const { deleteDoc } = require('firebase/firestore');
+    const db = testEnv.authenticatedContext('admin-uid', { email: ADMIN_EMAIL }).firestore();
+    await assertFails(deleteDoc(doc(db, 'adminUsers', ADMIN_EMAIL)));
+  });
+
+  it('owner PUO\' eliminare un editor', async () => {
+    const { deleteDoc } = require('firebase/firestore');
+    const db = testEnv.authenticatedContext('admin-uid', { email: ADMIN_EMAIL }).firestore();
+    await assertSucceeds(deleteDoc(doc(db, 'adminUsers', EDITOR_EMAIL)));
   });
 });

@@ -3,13 +3,12 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Stessa whitelist di Firestore: config/admin { allowedEmails: [...] }.
+    // Stesso registro di Firestore: adminUsers/<email-lowercase> status active.
     function isAdminUser() {
       return request.auth != null
         && request.auth.token.email is string
-        && firestore.exists(/databases/(default)/documents/config/admin)
-        && request.auth.token.email in
-             firestore.get(/databases/(default)/documents/config/admin).data.allowedEmails;
+        && firestore.exists(/databases/(default)/documents/adminUsers/$(request.auth.token.email.lower()))
+        && firestore.get(/databases/(default)/documents/adminUsers/$(request.auth.token.email.lower())).data.status == 'active';
     }
 
     // Sfondi popup caricati dall'area admin.
@@ -23,6 +22,23 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
       // delete: solo admin (request.resource e' nullo in delete)
       allow delete: if isAdminUser();
+    }
+
+    // Immagini evento caricate dall'area admin (come popup-images, max 3MB).
+    match /event-images/{fileName} {
+      allow read: if true;
+      allow create, update: if isAdminUser()
+        && request.resource != null
+        && request.resource.size <= 3 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if isAdminUser();
+    }
+
+    // Immagini generate dalla callable generateImage (Admin SDK, che bypassa
+    // le rules): lettura pubblica per il sito, scrittura client vietata.
+    match /generated-images/{fileName} {
+      allow read: if true;
+      allow write: if false;
     }
 
     // Screenshot delle prove promo (gamification). Upload anonimo consentito

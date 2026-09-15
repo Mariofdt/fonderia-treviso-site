@@ -1093,3 +1093,16 @@
     max-width: 360px;
     pointer-events: none; /* anteprima: niente hover/click, replica solo il look */
 }
+
+/* Blocco "Genera immagine con IA" (tab Eventi/Popup) */
+.adm-ai-img textarea {
+    min-height: 54px;
+    resize: vertical;
+}
+.adm-ai-img-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
