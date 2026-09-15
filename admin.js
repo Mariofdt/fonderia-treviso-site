@@ -46,10 +46,11 @@ const els = {
         badges: $('tab-badges'),
         stats: $('tab-stats'),
         users: $('tab-users'),
+        social: $('tab-social'),
     },
 };
 
-let unsubscribe = { events: null, popups: null, bookings: null, newsletter: null, promos: null, badges: null, claims: null, users: null };
+let unsubscribe = { events: null, popups: null, bookings: null, newsletter: null, promos: null, badges: null, claims: null, users: null, social: null, campaigns: null };
 let bookingsCache = [];
 let bookingsFilter = 'all';
 let toastTimer = null;
@@ -354,12 +355,13 @@ async function initShell(user, authz) {
     startPromosTab();
     startBadgesTab();
     startStatsTab();
+    startSocialTab();
     if (authz.role === 'owner') startUsersTab();
 }
 
 function stopAll() {
     Object.values(unsubscribe).forEach((fn) => { if (fn) fn(); });
-    unsubscribe = { events: null, popups: null, bookings: null, newsletter: null, promos: null, badges: null, claims: null, users: null };
+    unsubscribe = { events: null, popups: null, bookings: null, newsletter: null, promos: null, badges: null, claims: null, users: null, social: null, campaigns: null };
 }
 
 /* ------------------------------------ tab: eventi ------------------------------------ */
@@ -2250,6 +2252,843 @@ function startUsersTab() {
         console.error('[admin] users init error:', err);
         listEl.innerHTML = '<div class="adm-inline-err">Impossibile connettersi al database.</div>';
     });
+}
+
+/* ------------------------------------ tab: social ------------------------------------
+ * Tre viste: Crea (brief → testi IA per FB/IG/WA/TT, immagine base, ritagli
+ * canvas nei formati, reel animato browser oppure video IA Veo), Campagna
+ * (programmazione con stato, link UTM e metriche), Galleria (tutti gli asset
+ * prodotti, scaricabili e riusabili). Dati: campaigns/ e socialPosts/
+ * (solo admin, vedi firestore.rules), file su Storage social/.
+ * Costo video IA indicato sul bottone: Veo 3 Fast 8s ≈ 3 $ lato Google. */
+
+const SOC_PLATFORMS = { fb: 'Facebook', ig: 'Instagram', wa: 'WhatsApp', tt: 'TikTok' };
+const SOC_STATUSES = { draft: 'Bozza', scheduled: 'Programmato', published: 'Pubblicato' };
+// Ritagli prodotti dal canvas partendo dall'immagine base (center-crop).
+const SOC_CROPS = [
+    { label: '16:9 — post Facebook', w: 1200, h: 675 },
+    { label: '1:1 — post Instagram', w: 1080, h: 1080 },
+    { label: '9:16 — stories / TikTok', w: 1080, h: 1920 },
+];
+
+function socSlug(s) {
+    return String(s || '').toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'campagna';
+}
+
+function socUtmLink(platform, utmCampaign) {
+    return 'https://fonderia-treviso.web.app/?utm_source=' + encodeURIComponent(platform) +
+        '&utm_medium=social&utm_campaign=' + encodeURIComponent(utmCampaign);
+}
+
+// Scarica un file da un URL pubblico: fetch → objectURL (nome pulito);
+// se CORS/rete bloccano, fallback aprendo l'URL in una nuova scheda.
+async function socDownload(url, filename) {
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const blob = await resp.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename || 'file';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    } catch (err) {
+        console.warn('[admin] download via fetch fallito, apro in nuova scheda:', err);
+        window.open(url, '_blank', 'noopener');
+    }
+}
+
+async function socLoadImage(url) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = () => rej(new Error('immagine non caricabile'));
+        img.src = url;
+    });
+    return img;
+}
+
+// Center-crop con cover: canvas WxH dal img caricato. Ritorna un Blob PNG.
+// Richiede CORS Attivo sul bucket Storage (Access-Control-Allow-Origin).
+function socCropToBlob(img, w, h) {
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+    const sw = w / scale;
+    const sh = h / scale;
+    const sx = (img.naturalWidth - sw) / 2;
+    const sy = (img.naturalHeight - sh) / 2;
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+    return new Promise((res, rej) => {
+        canvas.toBlob((b) => (b ? res(b) : rej(new Error('canvas vuoto'))), 'image/png');
+    });
+}
+
+// Reel "Ken Burns": 8s verticali (720x1280) con zoom lento sull'immagine
+// base, fascia scura in basso con titolo + logo testuale. Registrato con
+// MediaRecorder → .webm (IG/TT preferiscono mp4: il bottone lo segnala).
+function socRenderReel(img, title) {
+    const W = 720;
+    const H = 1280;
+    const DUR = 8000;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : 'video/webm';
+    const rec = new MediaRecorder(canvas.captureStream(30), { mimeType: mime, videoBitsPerSecond: 5000000 });
+    const chunks = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    const done = new Promise((res) => {
+        rec.onstop = () => res(new Blob(chunks, { type: 'video/webm' }));
+    });
+    // cover 9:16 sull'immagine sorgente
+    const baseScale = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+    const start = performance.now();
+    function frame(now) {
+        const t = Math.min(1, (now - start) / DUR);
+        const zoom = 1 + 0.14 * t; // zoom-in continuo
+        const dw = img.naturalWidth * baseScale * zoom;
+        const dh = img.naturalHeight * baseScale * zoom;
+        const dx = (W - dw) / 2 - dw * 0.02 * t; // lieve pan orizzontale
+        const dy = (H - dh) / 2;
+        ctx.fillStyle = '#141210';
+        ctx.fillRect(0, 0, W, H);
+        ctx.drawImage(img, dx, dy, dw, dh);
+        // fascia inferiore con titolo
+        const grad = ctx.createLinearGradient(0, H - 420, 0, H);
+        grad.addColorStop(0, 'rgba(10,8,6,0)');
+        grad.addColorStop(1, 'rgba(10,8,6,0.88)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, H - 420, W, 420);
+        ctx.fillStyle = '#f5efe4';
+        ctx.textAlign = 'center';
+        ctx.font = '700 52px "Space Grotesk", sans-serif';
+        const words = String(title || '').split(' ');
+        const lines = [];
+        let line = '';
+        words.forEach((wd) => {
+            if ((line + ' ' + wd).trim().length > 22) { lines.push(line.trim()); line = wd; }
+            else line += ' ' + wd;
+        });
+        if (line.trim()) lines.push(line.trim());
+        const shown = lines.slice(0, 3);
+        shown.forEach((l, i) => ctx.fillText(l, W / 2, H - 170 - (shown.length - 1 - i) * 62));
+        ctx.fillStyle = '#d9a441';
+        ctx.font = '500 30px "Space Grotesk", sans-serif';
+        ctx.fillText('FONDERIA TREVISO', W / 2, H - 84);
+        if (t < 1) requestAnimationFrame(frame);
+        else rec.stop();
+    }
+    rec.start(250);
+    requestAnimationFrame(frame);
+    return done;
+}
+
+async function startSocialTab() {
+    const panel = els.panels.social;
+    if (!panel) return;
+
+    let view = 'create'; // create | campagna | galleria
+    let campaigns = [];
+    let posts = [];
+    let editingId = null;      // post in modifica nella vista Crea
+    let baseImageUrl = '';     // immagine base scelta (URL Storage pubblico)
+    let gaCampaignSessions = null; // { slug: sessions } da getGaStats, una volta
+
+    const db = await getDb();
+
+    function campaignName(id) {
+        const c = campaigns.find((x) => x.id === id);
+        return c ? c.data.name : '';
+    }
+
+    /* ------------------------------- vista: crea ------------------------------- */
+
+    function createHTML() {
+        const p = editingId ? posts.find((x) => x.id === editingId) : null;
+        const d = p ? p.data : {};
+        const copy = d.copy || {};
+        const plats = d.platforms || [];
+        const campOpts = ['<option value="">— nessuna campagna —</option>']
+            .concat(campaigns.map((c) =>
+                `<option value="${esc(c.id)}"${d.campaignId === c.id ? ' selected' : ''}>${esc(c.data.name)}</option>`))
+            .join('');
+        return `
+        <div class="adm-panel-head">
+            <div>
+                <h2>Social — Crea</h2>
+                <p class="adm-panel-lead">Un brief, tutti i formati: l'IA propone i testi per Facebook, Instagram, WhatsApp e TikTok; tu scegli l'immagine base e produci ritagli e reel da scaricare e pubblicare a mano sulle piattaforme. Salvando, il post va in <strong>Campagna</strong> con data e stato; gli asset restano in <strong>Galleria</strong>.</p>
+            </div>
+        </div>
+        <div class="adm-form">
+            <div class="adm-form-title">${editingId ? 'Modifica post' : 'Nuovo post'}</div>
+            <div class="adm-row">
+                <div class="adm-group">
+                    <label for="socTitle">Titolo interno <span class="adm-tip" tabindex="0" data-tip="Serve a riconoscere il post qui dentro: non viene pubblicato. Lo slug (nome semplificato) diventa il nome campagna nei link UTM.">?</span></label>
+                    <input id="socTitle" type="text" value="${esc(d.title || '')}" placeholder="Es. Apertura stagione — teaser">
+                </div>
+                <div class="adm-group">
+                    <label for="socCampaign">Campagna <span class="adm-tip" tabindex="0" data-tip="Raggruppa i post nella vista Campagna. Le nuove campagne si creano nella vista Campagna stessa.">?</span></label>
+                    <select id="socCampaign">${campOpts}</select>
+                </div>
+            </div>
+            <div class="adm-group">
+                <label for="socBrief">Brief del contenuto <span class="adm-tip" tabindex="0" data-tip="Descrivi cosa vuoi comunicare: cosa succede, quando, perché venire. Il bottone ✨ lo trasforma in 4 testi pronti (uno per piattaforma) che poi puoi modificare.">?</span></label>
+                <textarea id="socBrief" rows="3" placeholder="Es. Venerdì 3 ottobre riapriamo: live dei Radiofonic, taglieri e birra della casa in lancio, ingresso libero dalle 19">${esc(d.brief || '')}</textarea>
+            </div>
+            <div class="adm-group">
+                <span class="adm-label-row">
+                    <label>Piattaforme</label>
+                </span>
+                <div class="adm-checks">
+                    ${Object.entries(SOC_PLATFORMS).map(([k, label]) => `
+                    <label class="adm-check"><input type="checkbox" class="soc-plat" value="${k}" ${plats.includes(k) ? 'checked' : ''}> ${label}</label>`).join('')}
+                </div>
+            </div>
+            <div class="adm-group">
+                <div class="adm-label-row">
+                    <label>Testi per piattaforma <span class="adm-tip" tabindex="0" data-tip="Gemini scrive una bozza per piattaforma dal brief (hashtag su IG/TT, tono diretto su WA). Modificabili liberamente prima di salvare.">?</span></label>
+                    <button type="button" id="socCopyBtn" class="adm-btn adm-btn-ghost adm-btn-sm adm-btn-ai"
+                        title="Proponi i 4 testi con l'IA">✨ Proponi testi con IA</button>
+                </div>
+                <div class="adm-soc-copy">
+                    ${Object.entries(SOC_PLATFORMS).map(([k, label]) => `
+                    <div class="adm-soc-copy-item">
+                        <label for="socCopy_${k}">${label}</label>
+                        <textarea id="socCopy_${k}" rows="3">${esc(copy[k] || '')}</textarea>
+                        <button type="button" class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="copy-text" data-plat="${k}">Copia testo</button>
+                    </div>`).join('')}
+                </div>
+                <span id="socCopyStatus" class="adm-cell-muted" role="status"></span>
+            </div>
+
+            <div class="adm-group">
+                <label>Immagine base <span class="adm-tip" tabindex="0" data-tip="Da qui nascono i ritagli 16:9 / 1:1 / 9:16 e il reel animato. Generata con IA, caricata dal computer o ripresa dalla Galleria.">?</span></label>
+                ${aiImageBlockHTML('soc', d.brief || '')}
+                <div class="adm-ai-img-actions">
+                    <input id="socUpload" type="file" accept="image/*">
+                    <span id="socUploadStatus" class="adm-cell-muted" role="status"></span>
+                </div>
+                <div id="socBasePreview" class="adm-soc-base" hidden>
+                    <img id="socBaseImg" alt="Immagine base">
+                    <span id="socBaseLabel" class="adm-cell-muted"></span>
+                </div>
+            </div>
+
+            <div class="adm-group" id="socCropsBlock" hidden>
+                <label>Ritagli pronti <span class="adm-tip" tabindex="0" data-tip="Ritaglio centrale automatico nei tre formati social. «Scarica» salva il file sul computer; «Salva in galleria» lo conserva su Storage per riusarlo dopo.">?</span></label>
+                <div id="socCrops" class="adm-soc-crops"></div>
+            </div>
+
+            <div class="adm-group" id="socReelBlock" hidden>
+                <label>Reel verticale 8 secondi <span class="adm-tip" tabindex="0" data-tip="Due strade: reel animato fatto dal browser (gratis, formato webm — per IG/TikTok conviene il video IA o una conversione in mp4) oppure video vero generato da Veo 3 Fast (Google): circa 3 $ a video, addebitati sul progetto. Entrambi si possono scaricare e salvare in galleria.">?</span></label>
+                <div class="adm-row">
+                    <div class="adm-group">
+                        <button type="button" id="socReelWebmBtn" class="adm-btn adm-btn-ghost">🎞 Reel animato (gratis, .webm)</button>
+                        <div class="adm-cell-note">Zoom cinematografico sulla tua immagine con titolo e logo. Attendi ~10 s.</div>
+                    </div>
+                    <div class="adm-group">
+                        <button type="button" id="socReelVeoBtn" class="adm-btn adm-btn-ghost adm-btn-ai">🎬 Video IA Veo 8s — costo ≈ 3 €</button>
+                        <div class="adm-cell-note">Video vero da descrizione + immagine base come primo frame. Max 4 video/ora. Attendi 1-3 min.</div>
+                        <input id="socVeoPrompt" type="text" placeholder="Movimento del video, es: camera lenta sul bancone con spillatura della birra">
+                    </div>
+                </div>
+                <div class="adm-row">
+                    <div class="adm-group">
+                        <label for="socVideoUpload">oppure carica un video tuo (mp4, max 50 MB)</label>
+                        <input id="socVideoUpload" type="file" accept="video/*">
+                    </div>
+                </div>
+                <span id="socReelStatus" class="adm-cell-muted" role="status"></span>
+                <div id="socReels" class="adm-soc-crops"></div>
+            </div>
+
+            <div class="adm-row">
+                <div class="adm-group">
+                    <label for="socScheduled">Pubblicazione prevista <span class="adm-tip" tabindex="0" data-tip="Data e ora in cui intendi pubblicare: la vista Campagna li usa per ordinare la programmazione. La pubblicazione vera resta manuale sulle piattaforme.">?</span></label>
+                    <input id="socScheduled" type="datetime-local" value="${esc(d.scheduledFor || '')}">
+                </div>
+                <div class="adm-group">
+                    <label for="socStatus">Stato</label>
+                    <select id="socStatus">
+                        ${Object.entries(SOC_STATUSES).map(([k, label]) =>
+                            `<option value="${k}"${(d.status || 'draft') === k ? ' selected' : ''}>${label}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+            <div id="socErr" class="adm-inline-err" hidden></div>
+            <div class="adm-form-actions">
+                <button class="adm-btn" type="button" id="socSaveBtn">${editingId ? 'Salva modifiche' : 'Salva post in campagna'}</button>
+                ${editingId ? '<button class="adm-btn adm-btn-ghost" type="button" data-soc-action="new-post">Annulla modifica</button>' : ''}
+            </div>
+        </div>`;
+    }
+
+    /* ----------------------------- vista: campagna ----------------------------- */
+
+    function campagnaHTML() {
+        const campRows = campaigns.map((c) => `
+            <div class="adm-card${c.data.status === 'archived' ? ' inactive' : ''}">
+                <div class="adm-card-main">
+                    <div class="adm-card-title">${esc(c.data.name)}</div>
+                    <div class="adm-card-sub">${c.data.status === 'archived' ? 'Archiviata' : 'Attiva'}${auditBy(c.data)}</div>
+                </div>
+                <div class="adm-card-actions">
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="toggle-campaign" data-id="${esc(c.id)}" type="button">
+                        ${c.data.status === 'archived' ? 'Riattiva' : 'Archivia'}</button>
+                </div>
+            </div>`).join('');
+
+        const sorted = posts.slice().sort((a, b) =>
+            String(a.data.scheduledFor || '9999').localeCompare(String(b.data.scheduledFor || '9999')));
+        const postRows = sorted.map((p) => {
+            const d = p.data;
+            const slug = socSlug(d.title);
+            const sessions = gaCampaignSessions && gaCampaignSessions[slug] != null
+                ? gaCampaignSessions[slug] : null;
+            const stats = d.manualStats || {};
+            const plats = (d.platforms || []).map((k) => SOC_PLATFORMS[k] || k).join(', ') || '—';
+            const utmLinks = (d.platforms || []).map((k) => `
+                <div class="adm-soc-utm">
+                    <code>${esc(socUtmLink(k, slug))}</code>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="copy-utm" data-plat="${k}" data-slug="${esc(slug)}" type="button">Copia link ${SOC_PLATFORMS[k]}</button>
+                </div>`).join('');
+            const assets = (d.assets || []).map((a) => `
+                <span class="adm-soc-asset">
+                    ${a.kind === 'video' ? '🎬' : '🖼'} ${esc(a.label)}
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="download" data-url="${esc(a.url)}" data-label="${esc(a.label)}" type="button">Scarica</button>
+                </span>`).join('');
+            return `
+            <div class="adm-card adm-card--post">
+                <div class="adm-card-main">
+                    <div class="adm-card-title">${d.scheduledFor ? '📅 ' + esc(new Date(d.scheduledFor).toLocaleString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })) + ' — ' : ''}${esc(d.title || '(senza titolo)')}</div>
+                    <div class="adm-card-sub">${campaignName(d.campaignId) ? esc(campaignName(d.campaignId)) + ' · ' : ''}${esc(plats)}${auditBy(d)}</div>
+                    <div class="adm-soc-assets">${assets || '<span class="adm-cell-muted">Nessun asset salvato — aprilo in modifica dalla vista Crea.</span>'}</div>
+                    ${utmLinks ? `<div class="adm-soc-utms">${utmLinks}</div>` : ''}
+                    <div class="adm-soc-metrics">
+                        <span class="adm-chip">GA4: ${sessions == null ? '—' : fmtNum(sessions) + ' sessioni'}</span>
+                        <label>Visualizzazioni <input type="number" min="0" class="adm-input-sm" data-soc-stat="views" data-id="${esc(p.id)}" value="${esc(stats.views ?? '')}"></label>
+                        <label>Interazioni <input type="number" min="0" class="adm-input-sm" data-soc-stat="likes" data-id="${esc(p.id)}" value="${esc(stats.likes ?? '')}"></label>
+                        <span class="adm-cell-muted">I numeri GA4 arrivano dai link UTM (serve il ${sessions == null ? 'collegamento GA attivo' : 'link pubblicato'}); visualizzazioni e interazioni le annoti tu dalle app.</span>
+                    </div>
+                </div>
+                <div class="adm-card-actions">
+                    <select data-soc-action="status" data-id="${esc(p.id)}" class="adm-input-sm">
+                        ${Object.entries(SOC_STATUSES).map(([k, label]) =>
+                            `<option value="${k}"${d.status === k ? ' selected' : ''}>${label}</option>`).join('')}
+                    </select>
+                    ${(d.platforms || []).includes('wa') && d.copy && d.copy.wa
+                        ? `<a class="adm-btn adm-btn-ghost adm-btn-sm" href="https://wa.me/?text=${encodeURIComponent(d.copy.wa)}" target="_blank" rel="noopener">Invia su WA</a>` : ''}
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="edit" data-id="${esc(p.id)}" type="button">Modifica</button>
+                    <button class="adm-btn adm-btn-danger adm-btn-sm" data-soc-action="delete" data-id="${esc(p.id)}" type="button">Elimina</button>
+                </div>
+            </div>`;
+        }).join('');
+
+        return `
+        <div class="adm-panel-head">
+            <div>
+                <h2>Social — Campagna</h2>
+                <p class="adm-panel-lead">La programmazione: cosa esce, quando e dove. Per ogni post trovi i <strong>link con UTM</strong> da incollare nelle pubblicazioni (le visite che portano si leggono sotto «GA4»), i download degli asset e i campi per annotare visualizzazioni/interazioni.</p>
+            </div>
+        </div>
+        <form id="socCampForm" class="adm-form" novalidate>
+            <div class="adm-form-title">Nuova campagna</div>
+            <div class="adm-row">
+                <div class="adm-group">
+                    <label for="socCampName">Nome campagna</label>
+                    <input id="socCampName" type="text" required placeholder="Es. Apertura stagione 2026">
+                </div>
+            </div>
+            <div class="adm-form-actions">
+                <button class="adm-btn adm-btn-ghost" type="submit">+ Crea campagna</button>
+            </div>
+        </form>
+        <h3 class="adm-subhead">Campagne</h3>
+        <div class="adm-list">${campRows || '<div class="adm-empty">Nessuna campagna: creane una qui sopra.</div>'}</div>
+        <h3 class="adm-subhead">Programmazione (${posts.length} post)</h3>
+        <div class="adm-list">${postRows || '<div class="adm-empty">Nessun post ancora. Crealo dalla vista Crea.</div>'}</div>`;
+    }
+
+    /* ----------------------------- vista: galleria ----------------------------- */
+
+    function galleriaHTML() {
+        const seen = new Set();
+        const assets = [];
+        posts.forEach((p) => {
+            (p.data.assets || []).forEach((a) => {
+                if (a && a.url && !seen.has(a.url)) {
+                    seen.add(a.url);
+                    assets.push({ ...a, postTitle: p.data.title || '' });
+                }
+            });
+            if (p.data.baseImageUrl && !seen.has(p.data.baseImageUrl)) {
+                seen.add(p.data.baseImageUrl);
+                assets.push({ kind: 'image', label: 'immagine base', url: p.data.baseImageUrl, postTitle: p.data.title || '' });
+            }
+        });
+        const cells = assets.map((a) => `
+            <div class="adm-gal-cell">
+                ${a.kind === 'video'
+                    ? `<video src="${esc(a.url)}" controls muted playsinline></video>`
+                    : `<img src="${esc(a.url)}" alt="${esc(a.label)}" loading="lazy">`}
+                <div class="adm-gal-meta">
+                    <span>${esc(a.label)}${a.postTitle ? ' · ' + esc(a.postTitle) : ''}</span>
+                </div>
+                <div class="adm-gal-actions">
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="download" data-url="${esc(a.url)}" data-label="${esc(a.label)}" type="button">Scarica</button>
+                    ${a.kind === 'image'
+                        ? `<button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="reuse" data-url="${esc(a.url)}" type="button">Riusa come base</button>` : ''}
+                </div>
+            </div>`).join('');
+        return `
+        <div class="adm-panel-head">
+            <div>
+                <h2>Social — Galleria</h2>
+                <p class="adm-panel-lead">Tutti gli asset prodotti (immagini, ritagli, reel). Scaricali per pubblicarli o riusa un'immagine come base di un nuovo post.</p>
+            </div>
+        </div>
+        <div class="adm-gallery">${cells || '<div class="adm-empty">Ancora nessun asset. Genera immagini e reel dalla vista Crea.</div>'}</div>`;
+    }
+
+    /* ------------------------------- render + stato ------------------------------- */
+
+    function render() {
+        panel.querySelectorAll('.adm-subtab').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
+        const body = $('socBody');
+        if (!body) {
+            panel.innerHTML = `
+                <div class="adm-subtabs">
+                    <button class="adm-subtab" data-view="create" type="button">✏️ Crea</button>
+                    <button class="adm-subtab" data-view="campagna" type="button">📅 Campagna</button>
+                    <button class="adm-subtab" data-view="galleria" type="button">🖼 Galleria</button>
+                </div>
+                <div id="socBody"></div>`;
+        }
+        const target = $('socBody');
+        target.innerHTML = view === 'create' ? createHTML() : view === 'campagna' ? campagnaHTML() : galleriaHTML();
+        if (view === 'create') {
+            // ripristina immagine base e ritagli se già prodotti in questa sessione
+            if (baseImageUrl) setBaseImage(baseImageUrl, true);
+            $('socCopyBtn').addEventListener('click', onCopyAI);
+            $('socSaveBtn').addEventListener('click', onSave);
+            const genBtn = $('socAiGenBtn');
+            if (genBtn) genBtn.addEventListener('click', () => runAiImage('soc', (url) => setBaseImage(url)));
+            $('socUpload').addEventListener('change', onUploadImage);
+            $('socReelWebmBtn') && $('socReelWebmBtn').addEventListener('click', onReelWebm);
+            $('socReelVeoBtn') && $('socReelVeoBtn').addEventListener('click', onReelVeo);
+            $('socVideoUpload') && $('socVideoUpload').addEventListener('change', onUploadVideo);
+        }
+        if (view === 'campagna') loadGaCampaigns();
+    }
+
+    function setBaseImage(url, silent) {
+        baseImageUrl = url;
+        const prev = $('socBasePreview');
+        if (prev) {
+            prev.hidden = false;
+            $('socBaseImg').src = url;
+            $('socBaseLabel').textContent = url.split('/o/')[1]
+                ? decodeURIComponent(url.split('/o/')[1].split('?')[0])
+                : url;
+        }
+        const cropsBlock = $('socCropsBlock');
+        const reelBlock = $('socReelBlock');
+        if (cropsBlock) cropsBlock.hidden = false;
+        if (reelBlock) reelBlock.hidden = false;
+        if (cropsBlock && !cropsBlock.dataset.ready) {
+            cropsBlock.dataset.ready = '1';
+            buildCrops(url).catch((err) => {
+                console.warn('[admin] crops falliti:', err);
+                toast('Ritagli non riusciti: ' + err.message, true);
+            });
+        }
+        if (!silent) toast('Immagine base impostata.');
+    }
+
+    // Ritagli canvas nei 3 formati + anteprime con scarica / salva in galleria
+    async function buildCrops(url) {
+        const img = await socLoadImage(url);
+        const box = $('socCrops');
+        if (!box) return;
+        box.innerHTML = '<div class="adm-empty">Preparo i ritagli…</div>';
+        const out = [];
+        for (const c of SOC_CROPS) {
+            const blob = await socCropToBlob(img, c.w, c.h);
+            const objUrl = URL.createObjectURL(blob);
+            out.push({ ...c, blob, objUrl });
+        }
+        box.innerHTML = out.map((c, i) => `
+            <div class="adm-soc-crop">
+                <img src="${c.objUrl}" alt="${esc(c.label)}">
+                <div class="adm-cell-muted">${esc(c.label)} (${c.w}×${c.h})</div>
+                <div class="adm-gal-actions">
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-crop-dl="${i}" type="button">Scarica PNG</button>
+                    <button class="adm-btn adm-btn-ghost adm-btn-sm" data-crop-save="${i}" type="button">Salva in galleria</button>
+                </div>
+            </div>`).join('');
+        box.addEventListener('click', async (e) => {
+            const dl = e.target.closest('[data-crop-dl]');
+            const sv = e.target.closest('[data-crop-save]');
+            if (!dl && !sv) return;
+            const i = Number((dl || sv).dataset.cropDl ?? (dl || sv).dataset.cropSave);
+            const c = out[i];
+            const fname = 'fonderia-' + c.label.split(' ')[0] + '-' + socSlug($('socTitle').value || 'post') + '.png';
+            if (dl) {
+                const a = document.createElement('a');
+                a.href = c.objUrl;
+                a.download = fname;
+                a.click();
+            } else {
+                sv.disabled = true;
+                sv.textContent = '⏳ Salvo…';
+                try {
+                    const storage = await getStorageInstance();
+                    const path = 'social/' + socSlug($('socTitle').value || 'post') + '-' + c.w + 'x' + c.h + '-' + Date.now() + '.png';
+                    await uploadBytes(storageRef(storage, path), c.blob, { contentType: 'image/png' });
+                    const savedUrl = await getDownloadURL(storageRef(storage, path));
+                    pendingAssets.push({ kind: 'image', label: 'ritaglio ' + c.label.split(' — ')[0], url: savedUrl, path });
+                    sv.textContent = '✓ In galleria';
+                    toast('Ritaglio salvato in galleria (si collega al post quando salvi).');
+                } catch (err) {
+                    console.error('[admin] save crop error:', err);
+                    sv.disabled = false;
+                    sv.textContent = 'Salva in galleria';
+                    toast('Salvataggio non riuscito: ' + (err.code || err.message), true);
+                }
+            }
+        }, { once: false });
+    }
+
+    const pendingAssets = []; // asset prodotti dopo l'ultimo render di Crea
+
+    async function onUploadImage(e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const st = $('socUploadStatus');
+        if (file.size > 3 * 1024 * 1024) { toast('Immagine troppo grande (max 3 MB).', true); return; }
+        try {
+            st.textContent = 'Carico…';
+            const storage = await getStorageInstance();
+            const path = 'social/upload-' + Date.now() + '-' + sanitizeFilename(file.name);
+            await uploadBytes(storageRef(storage, path), file, { contentType: file.type });
+            const url = await getDownloadURL(storageRef(storage, path));
+            st.textContent = 'Caricata ✓';
+            setBaseImage(url);
+        } catch (err) {
+            console.error('[admin] upload social image error:', err);
+            st.textContent = 'Upload non riuscito: ' + (err.code || err.message);
+        }
+    }
+
+    function reelEntryHTML(label, url, isVideo) {
+        return `
+        <div class="adm-soc-crop">
+            ${isVideo ? `<video src="${esc(url)}" controls muted playsinline></video>` : `<img src="${esc(url)}" alt="${esc(label)}">`}
+            <div class="adm-cell-muted">${esc(label)}</div>
+            <div class="adm-gal-actions">
+                <button class="adm-btn adm-btn-ghost adm-btn-sm" data-soc-action="download" data-url="${esc(url)}" data-label="${esc(label)}" type="button">Scarica</button>
+            </div>
+        </div>`;
+    }
+
+    async function onReelWebm() {
+        if (!baseImageUrl) { toast('Prima scegli l’immagine base.', true); return; }
+        const btn = $('socReelWebmBtn');
+        const st = $('socReelStatus');
+        btn.disabled = true;
+        st.textContent = 'Registro l’animazione (circa 10 secondi)…';
+        try {
+            const img = await socLoadImage(baseImageUrl);
+            const blob = await socRenderReel(img, $('socTitle').value || 'Fonderia Treviso');
+            const storage = await getStorageInstance();
+            const path = 'social/reel-webm-' + socSlug($('socTitle').value || 'post') + '-' + Date.now() + '.webm';
+            await uploadBytes(storageRef(storage, path), blob, { contentType: 'video/webm' });
+            const url = await getDownloadURL(storageRef(storage, path));
+            pendingAssets.push({ kind: 'video', label: 'reel animato (webm)', url, path });
+            $('socReels').insertAdjacentHTML('beforeend', reelEntryHTML('reel animato (webm)', url, true));
+            st.textContent = 'Reel pronto ✓ scaricalo per pubblicarlo (salvato in galleria quando salvi il post). Nota: IG/TikTok preferiscono mp4.';
+        } catch (err) {
+            console.error('[admin] reel webm error:', err);
+            st.textContent = 'Reel non riuscito: ' + (err.message || err);
+            toast('Reel non riuscito: ' + (err.message || err), true);
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function onReelVeo() {
+        if (!baseImageUrl) { toast('Prima scegli l’immagine base (sarà il primo frame del video).', true); return; }
+        const prompt = ($('socVeoPrompt').value || $('socBrief').value || '').trim();
+        if (prompt.length < 10) { toast('Descrivi il video nel campo sotto il bottone (o nel brief).', true); return; }
+        const btn = $('socReelVeoBtn');
+        const st = $('socReelStatus');
+        btn.disabled = true;
+        st.textContent = 'Veo sta generando il video (1-3 minuti, costo ≈ 3 € addebitato al progetto)…';
+        try {
+            const fn = httpsCallable(await getFunctionsInstance(), 'generateReelVideo');
+            const res = await fn({ prompt, imageUrl: baseImageUrl });
+            const url = res && res.data && res.data.url;
+            if (!url) throw new Error('risposta senza URL');
+            pendingAssets.push({ kind: 'video', label: 'video IA Veo (mp4)', url, path: res.data.path || '' });
+            $('socReels').insertAdjacentHTML('beforeend', reelEntryHTML('video IA Veo (mp4)', url, true));
+            st.textContent = 'Video pronto ✓ pronto da scaricare in formato mp4.';
+        } catch (err) {
+            console.error('[admin] reel veo error:', err);
+            const msg = (err && (err.details || err.message)) || String(err);
+            st.textContent = 'Non riuscito: ' + msg;
+            toast('Generazione video non riuscita: ' + msg, true);
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function onUploadVideo(e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const st = $('socReelStatus');
+        if (file.size > 50 * 1024 * 1024) { toast('Video troppo grande (max 50 MB).', true); return; }
+        try {
+            st.textContent = 'Carico il video…';
+            const storage = await getStorageInstance();
+            const path = 'social/upload-video-' + Date.now() + '-' + sanitizeFilename(file.name);
+            await uploadBytes(storageRef(storage, path), file, { contentType: file.type });
+            const url = await getDownloadURL(storageRef(storage, path));
+            pendingAssets.push({ kind: 'video', label: 'video caricato', url, path });
+            $('socReels').insertAdjacentHTML('beforeend', reelEntryHTML('video caricato', url, true));
+            st.textContent = 'Video caricato ✓';
+        } catch (err) {
+            console.error('[admin] upload video error:', err);
+            st.textContent = 'Upload non riuscito: ' + (err.code || err.message);
+        }
+    }
+
+    async function onCopyAI() {
+        const brief = $('socBrief').value.trim();
+        if (brief.length < 10) { toast('Scrivi prima il brief (almeno 10 caratteri).', true); $('socBrief').focus(); return; }
+        const btn = $('socCopyBtn');
+        const st = $('socCopyStatus');
+        btn.disabled = true;
+        btn.textContent = '⏳ Scrivo i 4 testi…';
+        st.textContent = '';
+        try {
+            const fn = httpsCallable(await getFunctionsInstance(), 'generateSocialCopy');
+            const res = await fn({ brief });
+            const d = (res && res.data) || {};
+            Object.keys(SOC_PLATFORMS).forEach((k) => {
+                if (d[k]) $('socCopy_' + k).value = d[k];
+            });
+            st.textContent = 'Testi pronti ✓ rivedili prima di salvare.';
+        } catch (err) {
+            console.error('[admin] generateSocialCopy error:', err);
+            const msg = (err && (err.details || err.message)) || String(err);
+            st.textContent = 'Non riuscita: ' + msg;
+            toast('Generazione testi non riuscita: ' + msg, true);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '✨ Proponi testi con IA';
+        }
+    }
+
+    async function onSave() {
+        const errBox = $('socErr');
+        errBox.hidden = true;
+        const title = $('socTitle').value.trim();
+        if (title.length < 3) {
+            errBox.textContent = 'Dai un titolo interno al post (almeno 3 caratteri).';
+            errBox.hidden = false;
+            return;
+        }
+        const platforms = Array.from(panel.querySelectorAll('.soc-plat:checked')).map((c) => c.value);
+        const copy = {};
+        Object.keys(SOC_PLATFORMS).forEach((k) => { copy[k] = $('socCopy_' + k).value.trim(); });
+        const btn = $('socSaveBtn');
+        btn.disabled = true;
+        try {
+            const existing = editingId ? posts.find((x) => x.id === editingId) : null;
+            const prevAssets = existing ? (existing.data.assets || []) : [];
+            const payload = {
+                title,
+                brief: $('socBrief').value.trim(),
+                campaignId: $('socCampaign').value || '',
+                platforms,
+                copy,
+                baseImageUrl: baseImageUrl || (existing ? existing.data.baseImageUrl : '') || '',
+                assets: prevAssets.concat(pendingAssets.filter((a) => !prevAssets.some((p) => p.url === a.url))),
+                scheduledFor: $('socScheduled').value || '',
+                status: $('socStatus').value,
+                ...auditUpdate(),
+            };
+            if (editingId) {
+                await updateDoc(doc(db, 'socialPosts', editingId), payload);
+                toast('Post aggiornato.');
+            } else {
+                await addDoc(collection(db, 'socialPosts'), { ...payload, manualStats: {}, ...auditCreate() });
+                toast('Post salvato: lo trovi nella vista Campagna.');
+            }
+            pendingAssets.length = 0;
+            editingId = null;
+            baseImageUrl = '';
+            view = 'campagna';
+            render();
+        } catch (err) {
+            console.error('[admin] save post error:', err);
+            errBox.textContent = 'Salvataggio non riuscito: ' + (err.code || err.message);
+            errBox.hidden = false;
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    /* --------------------------- metriche GA4 per UTM --------------------------- */
+
+    async function loadGaCampaigns() {
+        if (gaCampaignSessions) return;
+        try {
+            const fn = httpsCallable(await getFunctionsInstance(), 'getGaStats');
+            const res = await fn({});
+            gaCampaignSessions = {};
+            (((res && res.data) || {}).campaigns || []).forEach((r) => {
+                gaCampaignSessions[String(r.label)] = r.value;
+            });
+            if (view === 'campagna') render();
+        } catch (err) {
+            console.warn('[admin] GA4 campaigns non disponibili:', err && err.message);
+            gaCampaignSessions = {}; // non riprovare a ogni render
+        }
+    }
+
+    /* ----------------------------- delega eventi panel ----------------------------- */
+
+    panel.addEventListener('click', async (e) => {
+        const sub = e.target.closest('.adm-subtab');
+        if (sub) {
+            view = sub.dataset.view;
+            render();
+            return;
+        }
+        const btn = e.target.closest('[data-soc-action]');
+        if (!btn) return;
+        const action = btn.dataset.socAction;
+        const id = btn.dataset.id;
+        try {
+            if (action === 'copy-text') {
+                const t = $('socCopy_' + btn.dataset.plat);
+                await navigator.clipboard.writeText(t.value);
+                toast('Testo ' + SOC_PLATFORMS[btn.dataset.plat] + ' copiato.');
+            } else if (action === 'copy-utm') {
+                await navigator.clipboard.writeText(socUtmLink(btn.dataset.plat, btn.dataset.slug));
+                toast('Link UTM copiato: incollalo nel post ' + SOC_PLATFORMS[btn.dataset.plat] + '.');
+            } else if (action === 'download') {
+                const ext = btn.dataset.url.includes('.webm') ? '.webm' : btn.dataset.url.includes('.mp4') ? '.mp4' : '.png';
+                await socDownload(btn.dataset.url, 'fonderia-' + socSlug(btn.dataset.label || 'asset') + ext);
+            } else if (action === 'reuse') {
+                editingId = null;
+                pendingAssets.length = 0;
+                view = 'create';
+                render();
+                setBaseImage(btn.dataset.url);
+            } else if (action === 'edit') {
+                editingId = id;
+                baseImageUrl = '';
+                pendingAssets.length = 0;
+                const p = posts.find((x) => x.id === id);
+                if (p && p.data.baseImageUrl) baseImageUrl = p.data.baseImageUrl;
+                view = 'create';
+                render();
+            } else if (action === 'new-post') {
+                editingId = null;
+                baseImageUrl = '';
+                pendingAssets.length = 0;
+                render();
+            } else if (action === 'delete') {
+                if (confirm('Eliminare questo post dalla programmazione? Gli asset restano in Galleria finché non rimuovi i file da Storage.')) {
+                    await deleteDoc(doc(db, 'socialPosts', id));
+                    toast('Post eliminato.');
+                }
+            } else if (action === 'toggle-campaign') {
+                const c = campaigns.find((x) => x.id === id);
+                if (!c) return;
+                const next = c.data.status === 'archived' ? 'active' : 'archived';
+                await updateDoc(doc(db, 'campaigns', id), { status: next, ...auditUpdate() });
+                toast(next === 'archived' ? 'Campagna archiviata.' : 'Campagna riattivata.');
+            }
+        } catch (err) {
+            console.error('[admin] social action error:', err);
+            toast('Operazione non riuscita: ' + (err.code || err.message), true);
+        }
+    });
+
+    // cambio stato post + metriche manuali (delega su change/input)
+    panel.addEventListener('change', async (e) => {
+        const sel = e.target.closest('select[data-soc-action="status"]');
+        if (sel) {
+            try {
+                const patch = { status: sel.value, ...auditUpdate() };
+                if (sel.value === 'published') patch.publishedAt = serverTimestamp();
+                await updateDoc(doc(db, 'socialPosts', sel.dataset.id), patch);
+                toast('Stato aggiornato: ' + SOC_STATUSES[sel.value] + '.');
+            } catch (err) {
+                toast('Cambio stato non riuscito: ' + (err.code || err.message), true);
+            }
+        }
+    });
+    panel.addEventListener('focusout', async (e) => {
+        const inp = e.target.closest('[data-soc-stat]');
+        if (!inp) return;
+        const key = inp.dataset.socStat; // views | likes
+        const val = inp.value === '' ? null : Math.max(0, Number(inp.value) || 0);
+        try {
+            await updateDoc(doc(db, 'socialPosts', inp.dataset.id), {
+                ['manualStats.' + key]: val,
+                ...auditUpdate(),
+            });
+            toast('Metrica salvata.');
+        } catch (err) {
+            toast('Salvataggio metrica non riuscito: ' + (err.code || err.message), true);
+        }
+    });
+
+    panel.addEventListener('submit', async (e) => {
+        if (e.target.id !== 'socCampForm') return;
+        e.preventDefault();
+        const name = $('socCampName').value.trim();
+        if (name.length < 3) { toast('Nome campagna troppo corto.', true); return; }
+        try {
+            await addDoc(collection(db, 'campaigns'), { name, status: 'active', ...auditCreate() });
+            $('socCampName').value = '';
+            toast('Campagna creata.');
+        } catch (err) {
+            toast('Creazione campagna non riuscita: ' + (err.code || err.message), true);
+        }
+    });
+
+    /* ------------------------------ snapshot dati ------------------------------ */
+
+    unsubscribe.campaigns = onSnapshot(
+        query(collection(db, 'campaigns'), orderBy('name')),
+        (snap) => { campaigns = snap.docs.map((d) => ({ id: d.id, data: d.data() })); if (view === 'campagna') render(); },
+        (err) => { console.error('[admin] campaigns snapshot error:', err); }
+    );
+    unsubscribe.social = onSnapshot(
+        query(collection(db, 'socialPosts'), orderBy('scheduledFor')),
+        // in vista Crea NON ridisegnare: cancellerebbe il form mentre scrivi
+        (snap) => { posts = snap.docs.map((d) => ({ id: d.id, data: d.data() })); if (view !== 'create') render(); },
+        (err) => {
+            console.error('[admin] socialPosts snapshot error:', err);
+            panel.innerHTML = '<div class="adm-inline-err">Errore nel caricamento dei post social.</div>';
+        }
+    );
+
+    render();
 }
 
 /* ------------------------------------ bootstrap ------------------------------------ */

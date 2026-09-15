@@ -372,3 +372,37 @@ describe('adminUsers — gestione utenti admin', () => {
     await assertSucceeds(deleteDoc(doc(db, 'adminUsers', EDITOR_EMAIL)));
   });
 });
+
+describe('social — campaigns e socialPosts (solo admin)', () => {
+  it('anon NON puo\' leggere campaigns', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(getDocs(collection(db, 'campaigns')));
+  });
+
+  it('anon NON puo\' scrivere socialPosts', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(setDoc(doc(db, 'socialPosts', 'p1'), { title: 'x', status: 'draft' }));
+  });
+
+  it('utente loggato NON admin NON puo\' leggere campaigns', async () => {
+    const db = testEnv.authenticatedContext('rnd-uid', { email: 'estraneo@example.com' }).firestore();
+    await assertFails(getDocs(collection(db, 'campaigns')));
+  });
+
+  it('editor attivo PUO\' creare e leggere campaigns e socialPosts', async () => {
+    const db = testEnv.authenticatedContext('ed-uid', { email: EDITOR_EMAIL }).firestore();
+    await assertSucceeds(setDoc(doc(db, 'campaigns', 'c1'), {
+      name: 'Apertura', status: 'active', createdBy: EDITOR_EMAIL,
+    }));
+    await assertSucceeds(setDoc(doc(db, 'socialPosts', 'p1'), {
+      campaignId: 'c1', title: 'Post apertura', status: 'draft', createdBy: EDITOR_EMAIL,
+    }));
+    await assertSucceeds(getDocs(collection(db, 'campaigns')));
+    await assertSucceeds(getDocs(collection(db, 'socialPosts')));
+  });
+
+  it('utente SOSPESO NON puo\' scrivere socialPosts', async () => {
+    const db = testEnv.authenticatedContext('susp-uid', { email: SUSPENDED_EMAIL }).firestore();
+    await assertFails(setDoc(doc(db, 'socialPosts', 'p2'), { title: 'x', status: 'draft' }));
+  });
+});

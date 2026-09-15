@@ -292,15 +292,17 @@ exports.getGaStats = onCall(
       }));
     };
 
-    const [last7, last30, topPages, topSources, daily] = await Promise.all([
+    const [last7, last30, topPages, topSources, daily, campaigns] = await Promise.all([
       kpi('7daysAgo'),
       kpi('30daysAgo'),
       table('pagePath', 'screenPageViews', 8),
       table('sessionDefaultChannelGroup', 'sessions', 8),
       trend(),
+      // sessioni per campagna (link UTM dei post social): chiave = utm_campaign
+      table('sessionCampaign', 'sessions', 12),
     ]);
 
-    return { last7, last30, topPages, topSources, daily, generatedAt: new Date().toISOString() };
+    return { last7, last30, topPages, topSources, daily, campaigns, generatedAt: new Date().toISOString() };
   }
 );
 
@@ -506,6 +508,268 @@ exports.generateImage = onCall(
     }
   }
 );
+
+/* ------------------------------------------------------------------ *
+ * generateSocialCopy — testi per i social da un unico brief.
+ *
+ * Callable: stessa protezione di suggestEventCopy (assertAdmin).
+ * Modello: gemini-2.5-flash-lite (stesso endpoint VERTEX_GEMINI_URL).
+ * Input: { brief } — descrizione del contenuto/evento.
+ * Output: { fb, ig, wa, tt } — una proposta per piattaforma, con gli
+ * accorgimenti specifici (hashtag IG/TT, tono diretto WA, ecc.).
+ * Rate limit: max 30/ora per admin (doc copyGenLimits/<email>), stessa
+ * logica a transazione di imageGenLimits.
+ * ------------------------------------------------------------------ */
+
+const COPY_GEN_HOURLY_CAP = 30;
+
+// Rate limit a finestra oraria in transazione (condiviso da copy/reel).
+async function hitHourlyCap(db, collName, email, cap, label) {
+  const ref = db.collection(collName).doc(email.toLowerCase());
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.exists ? snap.data() : null;
+    const ws = data && data.windowStart && typeof data.windowStart.toMillis === 'function'
+      ? data.windowStart.toMillis()
+      : 0;
+    if (Date.now() - ws < 3600000 && (data.count || 0) >= cap) {
+      throw new HttpsError(
+        'resource-exhausted',
+        'Limite di ' + cap + ' ' + label + '/ora raggiunto. Riprova più tardi.'
+      );
+    }
+    if (Date.now() - ws >= 3600000) {
+      tx.set(ref, { windowStart: FieldValue.serverTimestamp(), count: 1 });
+    } else {
+      tx.update(ref, { count: FieldValue.increment(1) });
+    }
+  });
+}
+
+exports.generateSocialCopy = onCall(
+  { region: 'europe-west1', maxInstances: 2 },
+  async (req) => {
+    const email = await assertAdmin(req);
+
+    const brief = String((req.data && req.data.brief) || '').trim().slice(0, 1500);
+    if (brief.length < 10) {
+      throw new HttpsError('invalid-argument', 'Descrivi il contenuto del post (almeno 10 caratteri).');
+    }
+    await hitHourlyCap(admin.firestore(), 'copyGenLimits', email, COPY_GEN_HOURLY_CAP, 'testi');
+
+    const prompt =
+      'Sei il social media manager di Fonderia Treviso: birreria e cocktail bar\n' +
+      'con cucina, musica live e DJ set, in Via Fonderia 113 a Treviso. Tono caldo,\n' +
+      'energico e concreto, frasi brevi. Lingua: italiano.\n\n' +
+      'Contenuto da pubblicare:\n' + brief + '\n\n' +
+      'Scrivi 4 versioni dello stesso post, una per piattaforma, rispondendo\n' +
+      'ESATTAMENTE in questo formato, senza altro testo:\n' +
+      'FB: <post Facebook: 2-4 frasi, invito all’azione, nessun hashtag o al max 2>\n' +
+      'IG: <caption Instagram: incisiva, 5-10 hashtag pertinenti in fondo>\n' +
+      'WA: <messaggio WhatsApp per canale/stato: brevissimo e diretto, max 300 caratteri, link o invito finale>\n' +
+      'TT: <didascalia TikTok: 1-2 frasi giovani e dirette, 4-6 hashtag di tendenza>';
+
+    try {
+      const auth = new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
+      const client = await auth.getClient();
+      const { token } = await client.getAccessToken();
+
+      const resp = await fetch(VERTEX_GEMINI_URL, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.9, maxOutputTokens: 1200 },
+        }),
+      });
+
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => '');
+        logger.error('generateSocialCopy non-OK', { status: resp.status, body: body.slice(0, 500) });
+        throw new HttpsError('internal', 'Il modello non ha risposto (HTTP ' + resp.status + '). Riprova tra poco.');
+      }
+
+      const json = await resp.json();
+      const text = (((json.candidates || [])[0] || {}).content || {}).parts
+        ? json.candidates[0].content.parts.map((p) => p.text || '').join('')
+        : '';
+
+      // Parsing tollerante: ogni sezione va fino all'etichetta successiva.
+      const grab = (tag, nextTags) => {
+        const re = new RegExp(tag + ':\\s*([\\s\\S]*?)(?:\\n(?:' + nextTags.join('|') + '):|$)');
+        const m = text.match(re);
+        return m ? m[1].trim().slice(0, 1200) : '';
+      };
+      const fb = grab('FB', ['IG', 'WA', 'TT']);
+      const ig = grab('IG', ['WA', 'TT']);
+      const wa = grab('WA', ['TT']);
+      const tt = grab('TT', ['ZZZ']);
+      if (!fb && !ig && !wa && !tt) {
+        if (!text.trim()) throw new HttpsError('internal', 'Il modello ha risposto vuoto. Riprova.');
+        // formato inatteso → tutto il testo come FB, meglio che niente
+        return { fb: text.trim().slice(0, 1200), ig: '', wa: '', tt: '' };
+      }
+
+      logger.info('generateSocialCopy OK', { email });
+      return { fb, ig, wa, tt };
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      logger.error('generateSocialCopy FALLITO', { error: String(err && err.message || err) });
+      throw new HttpsError('internal', 'Generazione non riuscita. Riprova tra poco.');
+    }
+  }
+);
+
+/* ------------------------------------------------------------------ *
+ * generateReelVideo — video verticale via Veo 3 Fast su Vertex AI.
+ *
+ * Callable: assertAdmin. Modello: veo-3.0-fast-generate-001, location
+ * global (disponibilita' verificata 2026-09-15: predictLongRunning con
+ * payload vuoto risponde 400 "Empty instances" = endpoint attivo).
+ * Flusso: predictLongRunning → polling fetchPredictOperation ogni 10s
+ * (max ~7min) → bytes base64 → Storage social/<uuid>.mp4 → URL pubblico.
+ * Input: { prompt, imageUrl? } — imageUrl (URL Storage pubblico, tipico
+ * output di generateImage) fa da primo frame (image-to-video).
+ * Rate limit: max 4 video/ora per admin (costo ~$0.40/sec → 8s ≈ $3).
+ * NOTA costi: il prezzo indicativo va mostrato sul bottone in admin.
+ * ------------------------------------------------------------------ */
+
+const VEO_MODEL = 'veo-3.0-fast-generate-001';
+const VEO_BASE =
+  'https://aiplatform.googleapis.com/v1/projects/fonderia-treviso' +
+  '/locations/global/publishers/google/models/' + VEO_MODEL;
+const REEL_GEN_HOURLY_CAP = 4;
+const REEL_POLL_MAX_MS = 7 * 60 * 1000;
+
+exports.generateReelVideo = onCall(
+  { region: 'europe-west1', maxInstances: 2, timeoutSeconds: 540, memory: '512MiB' },
+  async (req) => {
+    const email = await assertAdmin(req);
+
+    const prompt = String((req.data && req.data.prompt) || '').trim().slice(0, 1000);
+    const imageUrl = String((req.data && req.data.imageUrl) || '').trim().slice(0, 2000);
+    if (prompt.length < 10) {
+      throw new HttpsError('invalid-argument', 'Descrivi il video da generare (almeno 10 caratteri).');
+    }
+
+    await hitHourlyCap(admin.firestore(), 'reelGenLimits', email, REEL_GEN_HOURLY_CAP, 'video');
+
+    try {
+      const auth = new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
+      const client = await auth.getClient();
+      const { token } = await client.getAccessToken();
+      const headers = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+
+      const instance = {
+        prompt:
+          'Vertical social video for Fonderia Treviso, an industrial-chic brewpub ' +
+          'and cocktail bar with live music in Treviso, Italy. Warm amber lights, ' +
+          'dark golden tones, energetic evening atmosphere, cinematic quality. ' +
+          'Subject: ' + prompt + '. No text, no logos, no watermarks.',
+      };
+
+      // image-to-video: scarica il frame iniziale (solo URL del nostro bucket)
+      if (imageUrl) {
+        const prefix = 'https://firebasestorage.googleapis.com/v0/b/' + STORAGE_BUCKET + '/o/';
+        if (!imageUrl.startsWith(prefix)) {
+          throw new HttpsError('invalid-argument', 'Come primo frame usa un’immagine del sito (generata o caricata).');
+        }
+        const imgResp = await fetch(imageUrl);
+        if (!imgResp.ok) {
+          throw new HttpsError('invalid-argument', 'Immagine di partenza non raggiungibile (HTTP ' + imgResp.status + ').');
+        }
+        const imgBuf = Buffer.from(await imgResp.arrayBuffer());
+        if (imgBuf.length > 10 * 1024 * 1024) {
+          throw new HttpsError('invalid-argument', 'Immagine di partenza troppo grande (max 10 MB).');
+        }
+        const mime = imgResp.headers.get('content-type') || 'image/png';
+        instance.image = { bytesBase64Encoded: imgBuf.toString('base64'), mimeType: mime.split(';')[0] };
+      }
+
+      const startResp = await fetch(VEO_BASE + ':predictLongRunning', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          instances: [instance],
+          parameters: {
+            aspectRatio: '9:16',
+            durationSeconds: 8,
+            sampleCount: 1,
+            personGeneration: 'allow_adult',
+          },
+        }),
+      });
+      if (!startResp.ok) {
+        const body = await startResp.text().catch(() => '');
+        logger.error('Veo predictLongRunning non-OK', { status: startResp.status, body: body.slice(0, 500) });
+        throw new HttpsError('internal', 'Avvio generazione video non riuscito (HTTP ' + startResp.status + '). Riprova tra poco.');
+      }
+      const started = await startResp.json();
+      const opName = started.name;
+      if (!opName) {
+        logger.error('Veo predictLongRunning senza operation name', { body: JSON.stringify(started).slice(0, 300) });
+        throw new HttpsError('internal', 'Risposta inattesa dal servizio video.');
+      }
+
+      // Polling: fetchPredictOperation finche' done (Veo fast ~1-3 min per 8s).
+      const deadline = Date.now() + REEL_POLL_MAX_MS;
+      let op = null;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 10000));
+        const pollResp = await fetch(VEO_BASE + ':fetchPredictOperation', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ operationName: opName }),
+        });
+        if (!pollResp.ok) {
+          logger.error('Veo polling non-OK', { status: pollResp.status });
+          continue; // errore transitorio: riprova al prossimo giro
+        }
+        op = await pollResp.json();
+        if (op.done) break;
+      }
+      if (!op || !op.done) {
+        throw new HttpsError('deadline-exceeded', 'Il video sta impiegando troppo: riprova tra qualche minuto.');
+      }
+      if (op.error) {
+        logger.error('Veo operation error', { error: JSON.stringify(op.error).slice(0, 500) });
+        throw new HttpsError('internal', 'Generazione video rifiutata: riformula la descrizione.');
+      }
+
+      const videos = (op.response && op.response.videos) || [];
+      const v0 = videos[0] || {};
+      let buf = null;
+      if (v0.bytesBase64Encoded) {
+        buf = Buffer.from(v0.bytesBase64Encoded, 'base64');
+      } else if (v0.gcsUri) {
+        // storageUri non richiesto nei parameters → non dovrebbe accadere,
+        // ma se Vertex restituisce un gcsUri scarichiamo e ricopiamo.
+        const dl = await client.request({ url: v0.gcsUri.replace('gs://', 'https://storage.googleapis.com/') });
+        buf = Buffer.from(dl.data);
+      }
+      if (!buf || !buf.length) {
+        logger.error('Veo: risposta senza video', { keys: Object.keys(op.response || {}) });
+        throw new HttpsError('internal', 'Il servizio non ha restituito il video. Riprova.');
+      }
+
+      const filePath = 'social/reel-' + crypto.randomUUID() + '.mp4';
+      await admin.storage().bucket(STORAGE_BUCKET).file(filePath).save(buf, {
+        contentType: 'video/mp4',
+        resumable: false,
+        metadata: { cacheControl: 'public, max-age=31536000' },
+      });
+      const url = 'https://firebasestorage.googleapis.com/v0/b/' + STORAGE_BUCKET +
+        '/o/' + encodeURIComponent(filePath) + '?alt=media';
+      logger.info('generateReelVideo OK', { email, filePath, bytes: buf.length });
+      return { url, path: filePath };
+    } catch (err) {
+      if (err instanceof HttpsError) throw err;
+      logger.error('generateReelVideo FALLITO', { error: String(err && err.message || err) });
+      throw new HttpsError('internal', 'Generazione video non riuscita. Riprova tra poco.');
+    }
+  }
+);
+
 
 /* ------------------------------------------------------------------ *
  * onNewsletterCreated — email di benvenuto al nuovo iscritto.

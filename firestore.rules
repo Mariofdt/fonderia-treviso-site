@@ -203,6 +203,20 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---------- social ----------
+
+    // campaigns: campagne social (programmazione, UTM, stato). Solo admin:
+    // nessun dato pubblico qui dentro (gli asset vivono su Storage social/).
+    match /campaigns/{campaignId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    // socialPosts: singole uscite di una campagna (copy per piattaforma,
+    // asset prodotti, data programmata, metriche manuali). Solo admin.
+    match /socialPosts/{postId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
     // ---------- default deny ----------
 
     match /{document=**} {

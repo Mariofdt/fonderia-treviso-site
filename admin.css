@@ -1106,3 +1106,202 @@
     margin-top: 8px;
     flex-wrap: wrap;
 }
+
+/* ------------------------------- tab: social ------------------------------- */
+
+.adm-subtabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+.adm-subtab {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    padding: 9px 18px;
+    border-radius: 999px;
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.adm-subtab:hover {
+    color: var(--color-white);
+    border-color: var(--color-accent);
+}
+.adm-subtab.active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-bg);
+}
+
+.adm-checks {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.adm-soc-copy {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+    margin-top: 10px;
+}
+.adm-soc-copy-item textarea {
+    min-height: 96px;
+    resize: vertical;
+}
+.adm-soc-copy-item button {
+    margin-top: 6px;
+}
+
+.adm-soc-base {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.adm-soc-base img {
+    width: 130px;
+    height: 74px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+}
+
+.adm-soc-crops {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-top: 10px;
+}
+.adm-soc-crop img,
+.adm-soc-crop video {
+    width: 100%;
+    max-height: 220px;
+    object-fit: contain;
+    background: var(--color-bg-alt);
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+}
+.adm-soc-crop .adm-gal-actions {
+    margin-top: 6px;
+}
+
+.adm-cell-note {
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+    margin-top: 6px;
+    line-height: 1.4;
+}
+
+.adm-subhead {
+    font-size: 1rem;
+    color: var(--color-white);
+    margin: 26px 0 10px;
+}
+
+.adm-soc-assets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+.adm-soc-asset {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--color-bg-alt);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 4px 6px 4px 12px;
+    font-size: 0.85rem;
+    color: var(--color-text);
+}
+
+.adm-soc-utms {
+    margin-top: 10px;
+    display: grid;
+    gap: 6px;
+}
+.adm-soc-utm {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.adm-soc-utm code {
+    background: var(--color-bg-alt);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    word-break: break-all;
+}
+
+.adm-soc-metrics {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+.adm-soc-metrics label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-text);
+}
+.adm-chip {
+    background: var(--color-bg-alt);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 4px 12px;
+}
+.adm-input-sm {
+    width: 90px;
+    background: var(--color-bg-alt);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    color: var(--color-text);
+    padding: 5px 8px;
+    font: inherit;
+    font-size: 0.85rem;
+}
+select.adm-input-sm {
+    width: auto;
+}
+
+.adm-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+    margin-top: 12px;
+}
+.adm-gal-cell {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 10px;
+}
+.adm-gal-cell img,
+.adm-gal-cell video {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 6px;
+    background: var(--color-bg-alt);
+}
+.adm-gal-meta {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin: 8px 0 6px;
+}
+.adm-gal-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
