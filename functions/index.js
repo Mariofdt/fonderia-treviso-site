@@ -451,7 +451,9 @@ exports.generateImage = onCall(
       'serale calda ed energica, luci ambrate, toni scuri e dorati, estetica\n' +
       'industriale-chic da brewpub moderno, immagine realistica di alta qualità.\n' +
       'Soggetto richiesto: ' + prompt + '\n' +
-      'Nessun testo, nessun logo, nessuna scritta o watermark nell’immagine.';
+      // NIENTE la parola "watermark": il safety filter di Vertex blocca
+      // qualunque prompt che la nomini (blockReason SAFETY, bug del 15/09/26).
+      'Nessun testo, nessun logo visibile nell’immagine.';
 
     try {
       const auth = new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
@@ -480,6 +482,16 @@ exports.generateImage = onCall(
       }
 
       const json = await resp.json();
+      // Prompt bloccato dal safety filter: messaggio comprensibile all'admin
+      // (accadeva quando il prompt nominava "watermark" — blockReason SAFETY).
+      const blockReason = json.promptFeedback && json.promptFeedback.blockReason;
+      if (blockReason) {
+        logger.error('Vertex image: prompt bloccato', { blockReason });
+        throw new HttpsError(
+          'invalid-argument',
+          'Il controllo sicurezza del modello ha bloccato questa descrizione. Semplificala e riprova.'
+        );
+      }
       const parts = (((json.candidates || [])[0] || {}).content || {}).parts || [];
       const imgPart = parts.find((p) => p.inlineData && p.inlineData.data);
       if (!imgPart) {
@@ -665,7 +677,8 @@ exports.generateReelVideo = onCall(
           'Vertical social video for Fonderia Treviso, an industrial-chic brewpub ' +
           'and cocktail bar with live music in Treviso, Italy. Warm amber lights, ' +
           'dark golden tones, energetic evening atmosphere, cinematic quality. ' +
-          'Subject: ' + prompt + '. No text, no logos, no watermarks.',
+          // NIENTE la parola "watermark": stesso blocco safety di generateImage.
+          'Subject: ' + prompt + '. No text overlay, no logos.',
       };
 
       // image-to-video: scarica il frame iniziale (solo URL del nostro bucket)
