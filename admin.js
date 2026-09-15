@@ -57,6 +57,32 @@ let unsubscribe = { events: null, popups: null, bookings: null, newsletter: null
 // media (che vive nella closure di startSocialTab) per aggiungere logo/testi
 // agli asset del wizard. Popolato da startSocialTab all'avvio della shell.
 const marketingBridge = { openEditor: null };
+
+// Dimensione celle delle gallerie (s=piccole, m=medie, l=grandi): condivisa
+// tra tab Social e tab Marketing, persistita in localStorage.
+let galSize = 'm';
+try { galSize = localStorage.getItem('fond.galSize') || 'm'; } catch (e) { /* storage non disponibile */ }
+function galSizeClass() { return galSize === 's' ? ' adm-gallery--sm' : galSize === 'l' ? ' adm-gallery--lg' : ''; }
+function galSizeSelectHTML(id) {
+    return `
+    <div class="adm-gal-size">
+        <label for="${id}">Dimensione</label>
+        <select id="${id}" class="adm-input-sm">
+            <option value="s"${galSize === 's' ? ' selected' : ''}>Piccole</option>
+            <option value="m"${galSize === 'm' ? ' selected' : ''}>Medie</option>
+            <option value="l"${galSize === 'l' ? ' selected' : ''}>Grandi</option>
+        </select>
+    </div>`;
+}
+function wireGalSizeSelect(id, rerender) {
+    const sel = $(id);
+    if (!sel) return;
+    sel.addEventListener('change', () => {
+        galSize = sel.value === 's' || sel.value === 'l' ? sel.value : 'm';
+        try { localStorage.setItem('fond.galSize', galSize); } catch (e) { /* ignora */ }
+        rerender();
+    });
+}
 let bookingsCache = [];
 let bookingsFilter = 'all';
 let toastTimer = null;
@@ -2688,8 +2714,9 @@ async function startSocialTab() {
                 <h2>Social — Galleria</h2>
                 <p class="adm-panel-lead">Tutti gli asset prodotti (immagini, ritagli, reel). Scaricali per pubblicarli o riusa un'immagine come base di un nuovo post.</p>
             </div>
+            ${galSizeSelectHTML('galSizeSel')}
         </div>
-        <div class="adm-gallery">${cells || '<div class="adm-empty">Ancora nessun asset. Genera immagini e reel dalla vista Crea.</div>'}</div>`;
+        <div class="adm-gallery${galSizeClass()}">${cells || '<div class="adm-empty">Ancora nessun asset. Genera immagini e reel dalla vista Crea.</div>'}</div>`;
     }
 
     /* ----------------------------- vista: asset grafici ----------------------------- */
@@ -2732,6 +2759,7 @@ async function startSocialTab() {
                 <h2>Social — Asset grafici</h2>
                 <p class="adm-panel-lead">Libreria riutilizzabile dell'<strong>editor media</strong>: logo, sticker, cornici, badge. Caricali una volta e li trovi pronti da sovrapporre a qualunque immagine o video (pulsante ✏️ Editor). Ideali PNG/SVG con sfondo trasparente.</p>
             </div>
+            ${galSizeSelectHTML('gfxSizeSel')}
         </div>
         <div class="adm-form">
             <div class="adm-form-title">Nuovo asset grafico</div>
@@ -2748,7 +2776,7 @@ async function startSocialTab() {
             </div>
         </div>
         <h3 class="adm-subhead">Libreria (${gfxAssets ? gfxAssets.length : '…'})</h3>
-        <div id="gfxList" class="adm-gallery">${gfxListHTML()}</div>`;
+        <div id="gfxList" class="adm-gallery${galSizeClass()}">${gfxListHTML()}</div>`;
     }
 
     async function onGfxUpload(e) {
@@ -3385,12 +3413,14 @@ async function startSocialTab() {
             $('socReelVeoBtn') && $('socReelVeoBtn').addEventListener('click', onReelVeo);
             $('socVideoUpload') && $('socVideoUpload').addEventListener('change', onUploadVideo);
         }
+        if (view === 'galleria') wireGalSizeSelect('galSizeSel', render);
         if (view === 'asset') {
             // IMPORTANTE: caricare SOLO a cache vuota. Se gfxAssets e' gia' valorizzata
             // loadGfxAssets() ritorna una promise gia' risolta: .then → render() →
             // .then → render() … = microtask loop infinito che CONGELA la pagina.
             if (!gfxAssets) loadGfxAssets().then(() => { if (view === 'asset') render(); });
             $('gfxUpload').addEventListener('change', onGfxUpload);
+            wireGalSizeSelect('gfxSizeSel', render);
         }
         if (view === 'editor') {
             // Guardia sul flag di sessione, NON su canvas.width: un <canvas>
@@ -3989,7 +4019,7 @@ async function startMarketingTab() {
             cells.push({ label: '🧩 libreria: ' + (g.data.name || ''), url: g.data.url, kind: 'image' });
         });
         if (!cells.length) return '<div class="adm-empty">Ancora nessun media: genera qualcosa con il pulsante qui sopra.</div>';
-        return `<div class="adm-gallery">${cells.map((c) => `
+        return `<div class="adm-gallery${galSizeClass()}">${cells.map((c) => `
             <div class="adm-gal-cell">
                 ${c.kind === 'video' ? `<video src="${esc(c.url)}" muted playsinline preload="metadata"></video>` : `<img src="${esc(c.url)}" alt="" loading="lazy">`}
                 <div class="adm-gal-label">${esc(c.label)}</div>
@@ -4015,7 +4045,7 @@ async function startMarketingTab() {
             parts.push(mkPopups.length ? mkPopups.map(mkPopupCellHTML).join('') : '<div class="adm-empty">Nessun popup.</div>');
         }
         if (filter === 'all' || filter === 'media') {
-            parts.push('<h3 class="adm-subhead">🖼 Tutti i media</h3>');
+            parts.push('<div class="adm-subhead-row"><h3 class="adm-subhead">🖼 Tutti i media</h3>' + galSizeSelectHTML('mkSizeSel') + '</div>');
             parts.push(mkMediaCellsHTML());
         }
         return parts.join('');
@@ -4715,6 +4745,11 @@ async function startMarketingTab() {
     panel.addEventListener('change', (e) => {
         if (e.target.id === 'mkUpload' && e.target.files && e.target.files[0]) {
             mkUploadImage(e.target.files[0]);
+        }
+        if (e.target.id === 'mkSizeSel') {
+            galSize = e.target.value === 's' || e.target.value === 'l' ? e.target.value : 'm';
+            try { localStorage.setItem('fond.galSize', galSize); } catch (err) { /* ignora */ }
+            render();
         }
     });
 

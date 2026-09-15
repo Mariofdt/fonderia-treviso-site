@@ -812,6 +812,12 @@
     color: var(--color-text-muted);
 }
 
+.adm-build {
+    margin-top: 6px;
+    opacity: 0.55;
+    font-family: monospace;
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 720px) {
     .adm-row,
@@ -1284,6 +1290,33 @@ select.adm-input-sm {
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 14px;
     margin-top: 12px;
+}
+/* Dimensione celle scelta dall'utente (selettore "Dimensione" nelle gallerie) */
+.adm-gallery--sm {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+}
+.adm-gallery--lg {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 18px;
+}
+.adm-gal-size {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+.adm-subhead-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.adm-subhead-row .adm-subhead {
+    margin-bottom: 0;
 }
 .adm-gal-cell {
     background: var(--color-surface);
