@@ -442,12 +442,16 @@
 }
 
 .adm-img-preview {
-    margin-top: 4px;
-    width: 110px;
-    height: 74px;
-    object-fit: cover;
-    border-radius: 8px;
+    margin-top: 8px;
+    width: 100%;
+    max-width: 420px;
+    height: auto;
+    max-height: 260px;
+    object-fit: contain;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 10px;
     border: 1px solid rgba(196, 93, 38, 0.3);
+    cursor: zoom-in; /* click → anteprima a tutto schermo (handler in admin.js) */
 }
 
 /* ---------- Liste / tabelle ---------- */

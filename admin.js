@@ -142,6 +142,25 @@ function aiImageBlockHTML(prefix, defaultPrompt) {
     </div>`;
 }
 
+/* La miniatura .adm-img-preview (popup/eventi, upload e IA) è piccola: al click si
+ * apre a tutto schermo. Riutilizza lo stesso overlay .adm-shot-overlay delle prove
+ * screenshot claim — un solo pattern, chiusura toccando fuori. */
+document.addEventListener('click', (e) => {
+    const prev = e.target.closest && e.target.closest('.adm-img-preview');
+    if (!prev || !prev.src) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'adm-shot-overlay';
+    const img = document.createElement('img');
+    img.src = prev.src;
+    img.alt = prev.alt || 'Anteprima immagine';
+    const hint = document.createElement('p');
+    hint.className = 'adm-shot-hint';
+    hint.textContent = 'Tocca fuori dall’immagine per chiudere';
+    overlay.append(img, hint);
+    overlay.addEventListener('click', () => overlay.remove());
+    document.body.appendChild(overlay);
+});
+
 async function runAiImage(prefix, onUrl) {
     const promptEl = $(prefix + 'AiPrompt');
     const statusEl = $(prefix + 'AiStatus');
