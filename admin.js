@@ -3381,7 +3381,10 @@ async function startSocialTab() {
             $('socVideoUpload') && $('socVideoUpload').addEventListener('change', onUploadVideo);
         }
         if (view === 'asset') {
-            loadGfxAssets().then(() => { if (view === 'asset') render(); });
+            // IMPORTANTE: caricare SOLO a cache vuota. Se gfxAssets e' gia' valorizzata
+            // loadGfxAssets() ritorna una promise gia' risolta: .then → render() →
+            // .then → render() … = microtask loop infinito che CONGELA la pagina.
+            if (!gfxAssets) loadGfxAssets().then(() => { if (view === 'asset') render(); });
             $('gfxUpload').addEventListener('change', onGfxUpload);
         }
         if (view === 'editor') {
