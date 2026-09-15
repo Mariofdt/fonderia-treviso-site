@@ -1066,6 +1066,96 @@ html { font-size: 17.5px; }
     margin-top: 6px;
 }
 
+/* pill selettore gamma 1/7/15/30/60 gg */
+.adm-range-pills {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+.adm-range-pill {
+    border: 1px solid rgba(240, 235, 227, 0.15);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    border-radius: 999px;
+    padding: 8px 18px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.adm-range-pill:hover {
+    border-color: var(--color-primary);
+    color: var(--color-text);
+}
+.adm-range-pill.active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+}
+.adm-stats-note {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin: -8px 0 18px;
+}
+
+/* scheda Google Places */
+.adm-place-link {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--color-accent);
+    text-decoration: none;
+    margin-left: 10px;
+}
+.adm-place-link:hover { text-decoration: underline; }
+.adm-place-hero {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+.adm-place-rating {
+    font-family: var(--font-heading);
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: var(--color-white);
+}
+.adm-place-stars { color: #f0b64c; letter-spacing: 2px; }
+.adm-place-stars-big { font-size: 1.3rem; }
+.adm-place-total { color: var(--color-text-muted); font-size: 0.95rem; }
+.adm-place-status {
+    margin-left: auto;
+    background: rgba(240, 235, 227, 0.06);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 0.88rem;
+}
+.adm-place-reviews h4 {
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    margin: 10px 0;
+}
+.adm-place-review {
+    border-top: 1px solid rgba(240, 235, 227, 0.08);
+    padding: 12px 0;
+}
+.adm-place-review-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 0.9rem;
+}
+.adm-place-when { color: var(--color-text-muted); font-size: 0.8rem; }
+.adm-place-review p {
+    margin: 6px 0 0;
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+}
+
 .adm-stats-err {
     font-size: 0.82rem;
     color: #e08d8a;

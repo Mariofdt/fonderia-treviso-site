@@ -5036,13 +5036,13 @@ function startStatsTab() {
         return `<span class="adm-kpi-delta ${cls}" title="rispetto ai 7 giorni precedenti">${arrow} ${Math.abs(pct)}%</span>`;
     }
 
-    function kpi(label, v7, v30, opts = {}) {
+    function kpi(label, value, subText, opts = {}) {
         const fmt = opts.fmt || fmtNum;
         return `
         <div class="adm-kpi"${opts.tip ? ` data-tip="${esc(opts.tip)}"` : ''}>
             <div class="adm-kpi-label">${label}</div>
-            <div class="adm-kpi-value">${fmt(v7)}${opts.delta !== undefined ? delta(v7, opts.delta) : ''}</div>
-            <div class="adm-kpi-sub">ultimi 7 giorni · ${fmt(v30)} in 30 gg</div>
+            <div class="adm-kpi-value">${fmt(value)}${opts.delta !== undefined ? delta(value, opts.delta) : ''}</div>
+            <div class="adm-kpi-sub">${subText}</div>
         </div>`;
     }
 
@@ -5146,21 +5146,44 @@ function startStatsTab() {
             <div class="adm-hour-legend"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div></div>`;
     }
 
+    // range pill: 1 / 7 / 15 / 30 / 60 giorni (KPI dinamici, tabelle restano a 30 gg)
+    const RANGES = [
+        ['d1', '1g', 'ieri (giorno completo)'],
+        ['d7', '7g', 'ultimi 7 giorni'],
+        ['d15', '15g', 'ultimi 15 giorni'],
+        ['d30', '30g', 'ultimi 30 giorni'],
+        ['d60', '60g', 'ultimi 60 giorni'],
+    ];
+    let statsData = null;
+    let curRange = 'd7';
+
+    function rangePills() {
+        return `<div class="adm-range-pills">${RANGES.map(([r, short, long]) =>
+            `<button type="button" class="adm-range-pill${r === curRange ? ' active' : ''}" data-range="${r}" data-tip="${long}">${short}</button>`
+        ).join('')}</div>`;
+    }
+
     function render(s) {
-        const prev = s.prev7 || {};
+        statsData = s;
+        const k = (s.ranges && s.ranges[curRange]) || s.last7;
+        const is7 = curRange === 'd7';
+        const prev = is7 ? (s.prev7 || {}) : {};
+        const sub = RANGES.find((r) => r[0] === curRange)[2];
         const byDaySorted = (s.byDay || [])
             .slice()
             .sort((a, b) => ((Number(a.label) + 6) % 7) - ((Number(b.label) + 6) % 7)); // Lun..Dom
         body.innerHTML = `
             ${liveBlock(s.live)}
+            ${rangePills()}
             <div class="adm-kpi-grid">
-                ${kpi('Visite (sessioni)', s.last7.sessions, s.last30.sessions, { delta: prev.sessions, tip: 'Quante volte qualcuno ha aperto il sito' })}
-                ${kpi('Visitatori', s.last7.users, s.last30.users, { delta: prev.users, tip: 'Persone diverse che hanno visitato il sito' })}
-                ${kpi('Nuovi visitatori', s.last7.newUsers, s.last30.newUsers, { tip: 'Persone che vedono il sito per la prima volta' })}
-                ${kpi('Pagine viste', s.last7.pageviews, s.last30.pageviews, { delta: prev.pageviews, tip: 'Totale pagine aperte' })}
-                ${kpi('Durata visita media', s.last7.avgDuration, s.last30.avgDuration, { fmt: fmtDur, tip: 'Quanto tempo resta in media un visitatore' })}
-                ${kpi('Rimbalzo', s.last7.bounceRate * 100, s.last30.bounceRate * 100, { fmt: (v) => Math.round(v) + '%', tip: 'Percentuale di chi vede una pagina sola e esce — più bassa è meglio' })}
+                ${kpi('Visite (sessioni)', k.sessions, sub, { delta: prev.sessions, tip: 'Quante volte qualcuno ha aperto il sito' })}
+                ${kpi('Visitatori', k.users, sub, { delta: prev.users, tip: 'Persone diverse che hanno visitato il sito' })}
+                ${kpi('Nuovi visitatori', k.newUsers, sub, { tip: 'Persone che vedono il sito per la prima volta' })}
+                ${kpi('Pagine viste', k.pageviews, sub, { delta: prev.pageviews, tip: 'Totale pagine aperte' })}
+                ${kpi('Durata visita media', k.avgDuration, sub, { fmt: fmtDur, tip: 'Quanto tempo resta in media un visitatore' })}
+                ${kpi('Rimbalzo', k.bounceRate * 100, sub + ' · più bassa è meglio', { fmt: (v) => Math.round(v) + '%', tip: 'Percentuale di chi vede una pagina sola e esce' })}
             </div>
+            <div class="adm-stats-note">Le tabelle sotto sono sempre sugli ultimi 30 giorni.</div>
             ${trend(s.daily)}
             ${funnel(s.events)}
             <div class="adm-stats-pair">
@@ -5180,15 +5203,24 @@ function startStatsTab() {
                 ${bars('Giorno della settimana (30 gg)', byDaySorted.map((r) => ({ ...r, label: DAY_LABELS[Number(r.label)] || r.label })))}
             </div>
             ${hourly(s.byHour)}
-            ${bars('Tutte le azioni sul sito (30 gg)', (s.events || []).slice(0, 12), labelOf(EVENT_LABELS))}`;
+            ${bars('Tutte le azioni sul sito (30 gg)', (s.events || []).slice(0, 12), labelOf(EVENT_LABELS))}
+            <div id="placeBlockHost"></div>`;
     }
 
     async function load() {
         body.innerHTML = '<div class="adm-empty">Caricamento statistiche…</div>';
         try {
             const fns = await getFunctionsInstance();
-            const { data } = await httpsCallable(fns, 'getGaStats')();
+            const [{ data }, place] = await Promise.all([
+                httpsCallable(fns, 'getGaStats')(),
+                // la scheda Google non deve mai bloccare le statistiche GA4
+                httpsCallable(fns, 'getPlaceStats')().catch((err) => {
+                    console.warn('[admin] getPlaceStats fallita:', err && err.message);
+                    return null;
+                }),
+            ]);
             render(data);
+            renderPlace(place);
         } catch (err) {
             // callable errors: il messaggio utile e' in details per gli HttpsError,
             // err.message resta il generico "INTERNAL"/"FAILED_PRECONDITION"
@@ -5197,8 +5229,56 @@ function startStatsTab() {
         }
     }
 
+    // ---- Scheda Google (Places): rating, recensioni, stato attività ----
+    const PLACE_STATUS = {
+        OPERATIONAL: ['✅', 'Aperta'],
+        CLOSED_TEMPORARILY: ['⏸️', 'Chiusa temporaneamente'],
+        CLOSED_PERMANENTLY: ['❌', 'Chiusa definitivamente'],
+    };
+
+    function stars(r) {
+        const full = Math.round(Number(r) || 0);
+        return '★'.repeat(full) + '☆'.repeat(Math.max(0, 5 - full));
+    }
+
+    function renderPlace(p) {
+        const host = body.querySelector('#placeBlockHost');
+        if (!host) return;
+        if (!p) {
+            host.innerHTML = '';
+            return;
+        }
+        const [icon, statusLabel] = PLACE_STATUS[p.status] || ['ℹ️', p.status || '—'];
+        const reviews = (p.reviews || []).map((r) => `
+            <div class="adm-place-review">
+                <div class="adm-place-review-head">
+                    <strong>${esc(r.author)}</strong>
+                    <span class="adm-place-stars" title="${r.rating}/5">${stars(r.rating)}</span>
+                    <span class="adm-place-when">${esc(r.when)}</span>
+                </div>
+                ${r.text ? `<p>${esc(r.text)}</p>` : ''}
+            </div>`).join('');
+        host.innerHTML = `
+            <div class="adm-stats-block">
+                <h3>Scheda Google (Maps / ricerca) <a class="adm-place-link" href="${esc(p.mapsUrl || '#')}" target="_blank" rel="noopener">Apri la scheda ↗</a></h3>
+                <div class="adm-place-hero">
+                    <span class="adm-place-rating">${p.rating !== null ? String(p.rating).replace('.', ',') : '—'}</span>
+                    <span class="adm-place-stars adm-place-stars-big">${stars(p.rating)}</span>
+                    <span class="adm-place-total">${fmtNum(p.totalReviews)} recensioni</span>
+                    <span class="adm-place-status">${icon} ${statusLabel}</span>
+                </div>
+                ${reviews ? `<div class="adm-place-reviews"><h4>Recensioni in evidenza</h4>${reviews}</div>` : ''}
+                <p class="adm-stats-note" style="margin-top:12px">Le interazioni complete (visualizzazioni scheda, chiamate, indicazioni stradali) sono solo su <em>Google Business Profile</em> — non accessibili via API pubblica.</p>
+            </div>`;
+    }
+
     panel.addEventListener('click', (e) => {
         if (e.target.closest('[data-stats-refresh]')) load();
+        const pill = e.target.closest('[data-range]');
+        if (pill && statsData) {
+            curRange = pill.getAttribute('data-range');
+            render(statsData);  // ri-render senza nuova chiamata: i dati ci sono già
+        }
     });
 
     load();

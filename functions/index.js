@@ -29,6 +29,7 @@ const brevoSmtpKey = defineSecret('BREVO_SMTP_KEY');
 const brevoSmtpUser = defineSecret('BREVO_SMTP_USER');
 const venueEmailParam = defineSecret('VENUE_EMAIL');
 const fromEmailParam = defineSecret('FROM_EMAIL');
+const placesApiKey = defineSecret('PLACES_API_KEY');
 
 const SERVICE_LABELS = {
   cena: 'Cena',
@@ -343,11 +344,14 @@ exports.getGaStats = onCall(
       }
     };
 
-    const [last7, last30, prev, topPages, topSources, daily, campaigns, devices, cities, events, live,
+    const [k1, k7, k15, k30, k60, prev, topPages, topSources, daily, campaigns, devices, cities, events, live,
       sourcesDetail, landingPages, newVsReturning, byHour, byDay] =
       await Promise.all([
+        kpi('yesterday'),    // "oggi" in GA e' parziale: ieri e' l'ultimo giorno completo
         kpi('7daysAgo'),
+        kpi('15daysAgo'),
         kpi('30daysAgo'),
+        kpi('60daysAgo'),
         prev7(),
         table('pagePath', 'screenPageViews', 8),
         table('sessionDefaultChannelGroup', 'sessions', 8),
@@ -372,10 +376,64 @@ exports.getGaStats = onCall(
       ]);
 
     return {
-      last7, last30, prev7: prev,
+      ranges: { d1: k1, d7: k7, d15: k15, d30: k30, d60: k60 },
+      last7: k7, last30: k30, prev7: prev, // alias retro-compat
       topPages, topSources, daily, campaigns,
       devices, cities, events, live,
       sourcesDetail, landingPages, newVsReturning, byHour, byDay,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+);
+
+/* ------------------------------------------------------------------ *
+ * getPlaceStats — dati pubblici della scheda Google (Places API New):
+ * rating, numero recensioni, stato attività, ultime recensioni.
+ * Place ID scoperto via searchText il 15/09/26 (rating 3.7 · 784 rev ✓).
+ * La key sta in Secret Manager (PLACES_API_KEY), restricted a Places API.
+ *
+ * NOTA: i numeri "Efficacia del profilo" (interazioni, visualizzazioni,
+ * chiamate) NON sono nella Places API: servono le Business Profile APIs
+ * con OAuth del proprietario della scheda. Non implementato (15/09/26).
+ * ------------------------------------------------------------------ */
+
+const GOOGLE_PLACE_ID = 'ChIJVyRY4gw3eUcRLJiXNAZWNxE'; // Fonderia Treviso, Via Fonderia 111
+
+exports.getPlaceStats = onCall(
+  { region: 'europe-west1', maxInstances: 2, secrets: [placesApiKey] },
+  async (req) => {
+    await assertAdmin(req);
+
+    // Places API (New): GET place details con field mask esplicita
+    const url = 'https://places.googleapis.com/v1/places/' + GOOGLE_PLACE_ID + '?languageCode=it';
+    const resp = await fetch(url, {
+      headers: {
+        'X-Goog-Api-Key': placesApiKey.value(),
+        'X-Goog-FieldMask':
+          'displayName,rating,userRatingCount,businessStatus,googleMapsUri,' +
+          'currentOpeningHours.weekdayDescriptions,reviews',
+      },
+    });
+    if (!resp.ok) {
+      logger.error('Places API errore', { status: resp.status });
+      throw new HttpsError('internal', 'Impossibile leggere la scheda Google (HTTP ' + resp.status + ').');
+    }
+    const p = await resp.json();
+
+    return {
+      name: (p.displayName && p.displayName.text) || 'Fonderia Treviso',
+      rating: p.rating || null,
+      totalReviews: p.userRatingCount || 0,
+      status: p.businessStatus || null, // OPERATIONAL | CLOSED_TEMPORARILY | CLOSED_PERMANENTLY
+      mapsUrl: p.googleMapsUri || null,
+      hours: (p.currentOpeningHours && p.currentOpeningHours.weekdayDescriptions) || [],
+      // max 5 recensioni "più rilevanti" restituite da Google
+      reviews: (p.reviews || []).slice(0, 5).map((r) => ({
+        author: r.authorAttribution && r.authorAttribution.displayName ? r.authorAttribution.displayName : 'Anonimo',
+        rating: r.rating || 0,
+        when: r.relativePublishTimeDescription || '',
+        text: (r.text && r.text.text ? r.text.text : '').slice(0, 300),
+      })),
       generatedAt: new Date().toISOString(),
     };
   }
